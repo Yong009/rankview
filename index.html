@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>키워드 순위 관리 - 폴더 시스템</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- 폰트 적용 (Pretendard) -->
+    <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+    <!-- 아이콘 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-background">
+        <!-- 배경 장식 요소 -->
+        <div class="bg-shape shape1"></div>
+        <div class="bg-shape shape2"></div>
+    </div>
+
+    <!-- 우측 상단 고정 버튼 -->
+    <a href="#" class="btn-kakao">
+        <i class="fas fa-comment"></i> 카카오톡 문의하기
+    </a>
+
+    <div class="app-container">
+        <!-- 메인 카드 배경 -->
+        <div class="main-card">
+            
+            <!-- 왼쪽 사이드바: 폴더 목록 관리 -->
+            <aside class="sidebar">
+                <div class="sidebar-logo">
+                    <i class="fas fa-chart-line"></i>
+                    <span>RankView</span>
+                </div>
+                
+                <div class="sidebar-header">
+                    <h2><i class="fas fa-folder"></i> 내 폴더</h2>
+                    <button id="addFolderBtn" class="btn-icon" title="새 폴더 추가">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+                
+                <ul class="folder-list" id="folderList">
+                    <!-- JS에서 폴더 목록 렌더링 -->
+                </ul>
+            </aside>
+
+            <!-- 오른쪽 메인 콘텐츠 (데이터 테이블 및 액션) -->
+            <main class="content-area">
+                <div class="content-header">
+                    <h1 class="user-status">test123123님 <span>무료체험중</span></h1>
+                </div>
+
+                <div class="action-bar-wrapper">
+                    <!-- 좌측: 주요 기능 버튼들 -->
+                    <div class="action-buttons-left">
+                        <button class="btn btn-primary"><i class="fas fa-bullhorn"></i> 공지사항</button>
+                        <button class="btn btn-primary" id="addProductBtn"><i class="fas fa-plus-circle"></i> 상품 등록</button>
+                        <button class="btn btn-primary"><i class="fas fa-file-excel"></i> 엑셀 업로드</button>
+                        <button class="btn btn-primary" id="refreshAllBtn"><i class="fas fa-sync-alt"></i> 순위 새로고침</button>
+                        <button class="btn btn-primary"><i class="fas fa-key"></i> 네이버 API 입력</button>
+                        <button class="btn btn-primary" id="deleteSelectedBtn"><i class="fas fa-trash-alt"></i> 선택삭제</button>
+                    </div>
+                    
+                    <!-- 우측: 검색 및 보조 기능 -->
+                    <div class="action-buttons-right">
+                        <div class="search-box">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="searchInput" placeholder="mid, 메모, 스토어명 검색">
+                        </div>
+                        <button class="btn btn-secondary">검색</button>
+                        <button class="btn btn-secondary">초기화</button>
+                        <button class="btn btn-secondary btn-logout">로그아웃</button>
+                    </div>
+                </div>
+
+                <!-- 실시간 진행 상황 표시 바 -->
+                <div id="rankProgressContainer" class="progress-container" style="display:none; margin: 15px 0; padding: 15px; background: rgba(255,255,255,0.7); border-radius: 12px; border: 1px solid rgba(var(--primary-rgb), 0.2);">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                        <span id="progressText" style="font-size: 0.85rem; font-weight: 600; color: var(--primary);">순위 확인 진행 중...</span>
+                    </div>
+                    <div class="progress-bar-bg" style="height: 10px; background: #e2e8f0; border-radius: 5px; overflow: hidden;">
+                        <div id="progressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, var(--primary), #6366f1); transition: width 0.3s ease;"></div>
+                    </div>
+                </div>
+
+                <!-- 현재 폴더 제목 및 건수 표시 -->
+                <div class="current-folder-info">
+                    <h3 id="currentFolderName">기본 폴더</h3>
+                    <span class="item-count">총 <b id="itemCount">0</b>건</span>
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th width="40"><input type="checkbox" id="selectAll"></th>
+                                <th>키워드</th>
+                                <th>MID</th>
+                                <th>카탈로그 MID</th>
+                                <th>스토어명</th>
+                                <th>메모</th>
+                                <th>링크</th>
+                                <th>오늘순위</th>
+                                <th>어제순위</th>
+                                <th>등락</th>
+                                <th>순위체크</th>
+                                <th>삭제</th>
+                            </tr>
+                        </thead>
+                        <tbody id="keywordTableBody">
+                            <!-- JS에서 데이터 렌더링 -->
+                        </tbody>
+                    </table>
+                    
+                    <div id="emptyState" class="empty-state" style="display:none;">
+                        <div class="empty-icon"><i class="fas fa-folder-open"></i></div>
+                        <h3>폴더가 비어있습니다</h3>
+                        <p>'상품 등록' 버튼을 눌러 새로운 관리 대상 키워드를 추가해보세요.</p>
+                        <button class="btn btn-primary mt-3" onclick="document.getElementById('addProductBtn').click()">상품 등록하기</button>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- 모달: 상품 등록 -->
+    <div id="productModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>새 상품 등록</h2>
+                <button class="close-modal"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="productForm">
+                    <div class="form-group">
+                        <label>저장될 폴더 (현재 선택된 폴더에 저장됩니다)</label>
+                        <div class="folder-badge" id="modalFolderName">기본 폴더</div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group w-50">
+                            <label>키워드 <span class="required">*</span></label>
+                            <input type="text" id="pdKeyword" required placeholder="예: 무선 이어폰">
+                        </div>
+                        <div class="form-group w-50">
+                            <label>MID <span class="required">*</span></label>
+                            <input type="text" id="pdMid" required placeholder="예: 87495077064">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group w-50">
+                            <label>카탈로그 MID</label>
+                            <input type="text" id="pdCatMid" placeholder="선택 사항">
+                        </div>
+                        <div class="form-group w-50">
+                            <label>스토어명</label>
+                            <input type="text" id="pdStore" placeholder="스토어 이름">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>상품주소 (링크)</label>
+                        <textarea id="pdLink" rows="2" placeholder="전체 URL 주소 입력"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>메모</label>
+                        <textarea id="pdMemo" rows="2" placeholder="참고사항 입력"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary close-modal">취소</button>
+                <button class="btn btn-primary" id="saveProductBtn">등록하기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 모달: 새 폴더 추가 -->
+    <div id="folderModal" class="modal-overlay">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h2>새 폴더 만들기</h2>
+                <button class="close-modal"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>새로 만들 폴더의 이름을 입력하세요</label>
+                    <input type="text" id="newFolderName" placeholder="예: 생활용품, 가전제품">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary close-modal">취소</button>
+                <button class="btn btn-primary" id="saveFolderBtn">생성</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 토스트 알림 -->
+    <div id="toast" class="toast">알림 메시지</div>
+
+    <script src="app.js"></script>
+</body>
+</html>

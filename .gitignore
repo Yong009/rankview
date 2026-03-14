@@ -1,0 +1,21 @@
+/target/
+/.idea/
+/.vscode/
+/*.db
+/bin/
+# ... any other local dev files ...
+*.class
+*.log
+*.jar
+*.war
+*.iml
+.idea/
+.project
+.settings/
+.classpath
+.factorypath
+HELP.md
+target/
+!**/src/main/**/target/
+!**/src/test/**/target/
+.DS_Store
