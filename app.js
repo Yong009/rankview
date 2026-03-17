@@ -1,26 +1,45 @@
 // Default State & Data Structure
 let folders = [
-  { id: 'f-1', name: '기본 폴더' },
-  { id: 'f-2', name: '가전제품' },
-  { id: 'f-3', name: '생활용품' }
+  { id: 'f-1', name: '기본 폴더', parentId: null },
+  { id: 'f-2', name: '반지', parentId: null },
+  { id: 'f-2-1', name: '90499240382', parentId: 'f-2' },
+  { id: 'f-2-2', name: '90499240383', parentId: 'f-2' },
+  { id: 'f-3', name: '목걸이', parentId: null },
+  { id: 'f-3-1', name: '12211230552', parentId: 'f-3' },
+  { id: 'f-4', name: '귀걸이', parentId: null },
+  { id: 'f-4-1', name: '9439861879', parentId: 'f-4' }
 ];
 
-let activeFolderId = 'f-1';
+let expandedFolders = new Set(['f-2', 'f-3', 'f-4']); // 기본적으로 확장될 폴더들
+let activeFolderId = 'all'; // Default to show everything
+let isEventListenersSetup = false; 
 
-// Sample Keywords Data
-// folderId links keyword to its respective folder
+// Sample Keywords Data with History View Support
 let keywords = [
   { 
-    id: 'k-1', folderId: 'f-1', keyword: '세제', mid: '87495077064', 
-    catalogMid: '', storeName: '스토어A', memo: '기본상품', 
-    link: '상품주소', targetRank: '업데이트 필요', yesterdayRank: '-', 
-    change: 0 
+    id: 'k-1', folderId: 'f-2-1', keyword: '14K 물고기 반지 (90499240382)', mid: '90499240382', 
+    price: '158,000', 
+    imageUrl: 'https://images.unsplash.com/photo-1605100804763-247f67b3f41e?w=100&h=100&fit=crop',
+    history: { '1': '10', '4': '7', '5': '7', '10': '5' },
+    highlight: true
   },
   { 
-    id: 'k-2', folderId: 'f-2', keyword: '무선 이어폰', mid: '12345678', 
-    catalogMid: '112233', storeName: '가전스토어', memo: '이벤트중', 
-    link: '상품상세', targetRank: '5', yesterdayRank: '8', 
-    change: 3 
+    id: 'k-2', folderId: 'f-2-2', keyword: '18K 심플 실반지 (90499240383)', mid: '90499240383', 
+    price: '89,000', 
+    imageUrl: 'https://images.unsplash.com/photo-1627225924765-552d44cfbc72?w=100&h=100&fit=crop',
+    history: { '3': '15', '4': '12', '5': '9', '6': '8' }
+  },
+  { 
+    id: 'k-3', folderId: 'f-2-1', keyword: '레이어드 가드링 (90499240382)', mid: '90499240382', 
+    price: '120,000', 
+    imageUrl: 'https://images.unsplash.com/photo-1544441893-675973e31d85?w=100&h=100&fit=crop',
+    history: { '5': '20', '6': '18', '7': '15' }
+  },
+  { 
+    id: 'k-4', folderId: 'f-3-1', keyword: '다이아 루이 목걸이 (12211230552)', mid: '12211230552', 
+    price: '345,000', 
+    imageUrl: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=100&h=100&fit=crop',
+    history: { '1': '2', '2': '1', '5': '1' }
   }
 ];
 
@@ -48,9 +67,21 @@ const selectAllCheckbox = document.getElementById('selectAll');
 
 // Initialize App
 function initApp() {
-  renderFolders();
-  renderKeywords();
-  setupEventListeners();
+  try {
+    // Ensure DOM is ready and listeners are attached before rendering
+    setupEventListeners();
+    renderFolders();
+    renderKeywords();
+  } catch (e) {
+    console.error("App initialization failed:", e);
+  }
+}
+
+// Ensure startup
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initApp);
+} else {
+  initApp();
 }
 
 // -------------------------------------------------------------
@@ -60,56 +91,152 @@ function initApp() {
 function renderFolders() {
   folderListEl.innerHTML = '';
   
-  folders.forEach(folder => {
-    // Count items in this folder
-    const count = keywords.filter(k => k.folderId === folder.id).length;
-    
-    const li = document.createElement('li');
-    li.className = `folder-item ${folder.id === activeFolderId ? 'active' : ''}`;
-    li.dataset.id = folder.id;
-    li.innerHTML = `
-      <i class="fas ${folder.id === activeFolderId ? 'fa-folder-open' : 'fa-folder'}"></i>
-      <span class="folder-name">${folder.name}</span>
-      <span class="folder-count">${count}</span>
-    `;
-    
-    // Select Folder on Click
-    li.addEventListener('click', () => {
-      activeFolderId = folder.id;
-      // Re-render
-      renderFolders();
-      renderKeywords();
-      clearSearch();
-    });
-    
-    folderListEl.appendChild(li);
+  // Add global dashboard item
+  const allItem = document.createElement('li');
+  allItem.className = `folder-item global ${activeFolderId === 'all' ? 'active' : ''}`;
+  allItem.dataset.id = 'all'; // Essential for delegation
+  allItem.innerHTML = `<i class="fas fa-th-large"></i> <span class="folder-name">전체 대시보드</span>`;
+  folderListEl.appendChild(allItem);
+
+  // Render root folders
+  const rootFolders = folders.filter(f => !f.parentId);
+  rootFolders.forEach(folder => {
+    renderFolderItem(folder, 0);
   });
-  
+
   // Update Current Folder info on main panel
-  const activeFolder = folders.find(f => f.id === activeFolderId);
-  if(activeFolder) {
-    currentFolderNameEl.textContent = activeFolder.name;
-    modalFolderNameEl.textContent = activeFolder.name;
+  if (activeFolderId === 'all') {
+    currentFolderNameEl.innerHTML = '<span class="path-current">전체 대시보드</span>';
+    modalFolderNameEl.textContent = '전체 대시보드';
+  } else {
+    const activeFolder = folders.find(f => f.id === activeFolderId);
+    if(activeFolder) {
+      const path = getFolderPath(activeFolderId);
+      currentFolderNameEl.innerHTML = path;
+      modalFolderNameEl.textContent = activeFolder.name;
+    }
   }
 }
 
-function renderKeywords(searchString = '') {
-  let filteredKeywords = keywords.filter(k => k.folderId === activeFolderId);
+function renderApp() {
+  renderFolders();
+  renderKeywords();
+  clearSearch();
+}
+
+function getFolderPath(folderId) {
+  let current = folders.find(f => f.id === folderId);
+  let path = [`${current.name}`];
   
-  // Filter by search string if exists
-  if(searchString) {
-    const lowerSearch = searchString.toLowerCase();
-    filteredKeywords = filteredKeywords.filter(k => 
-      k.mid.toLowerCase().includes(lowerSearch) || 
-      k.storeName.toLowerCase().includes(lowerSearch) || 
-      k.memo.toLowerCase().includes(lowerSearch) ||
-      k.keyword.toLowerCase().includes(lowerSearch)
-    );
+  while (current && current.parentId) {
+    current = folders.find(f => f.id === current.parentId);
+    if (current) {
+      path.unshift(current.name);
+    }
+  }
+  
+  return path.map((name, i) => 
+    i === path.length - 1 ? `<span class="path-current">${name}</span>` : `<span class="path-parent">${name}</span>`
+  ).join(' <i class="fas fa-chevron-right" style="font-size: 0.7rem; margin: 0 4px; opacity: 0.5;"></i> ');
+}
+
+function renderFolderItem(folder, depth) {
+  const isParent = folders.some(f => f.parentId === folder.id);
+  const isExpanded = expandedFolders.has(folder.id);
+  const isActive = folder.id === activeFolderId;
+  
+  // Count items (including children if it's a parent)
+  const allFolderIds = isParent ? getAllChildFolderIds(folder.id) : [folder.id];
+  const count = keywords.filter(k => allFolderIds.includes(k.folderId)).length;
+  
+  const li = document.createElement('li');
+  li.className = `folder-item ${isActive ? 'active' : ''} ${depth > 0 ? 'child' : ''} ${isExpanded ? 'expanded' : ''}`;
+  li.dataset.id = folder.id;
+  
+  let toggleBtn = isParent ? `<i class="fas fa-chevron-right toggle-icon"></i>` : '';
+  let folderIcon = isActive ? (isParent ? 'fa-folder-open' : 'fa-folder-open') : (isParent ? 'fa-folder' : 'fa-folder');
+  
+  li.innerHTML = `
+    ${toggleBtn}
+    <i class="fas ${folderIcon}"></i>
+    <span class="folder-name">${folder.name}</span>
+    <span class="folder-count">${count}</span>
+  `;
+  
+  folderListEl.appendChild(li);
+  
+  // Render Children if expanded
+  if (isParent && isExpanded) {
+    const children = folders.filter(f => String(f.parentId) === String(folder.id));
+    children.forEach(child => renderFolderItem(child, depth + 1));
+  }
+}
+
+function toggleFolder(id) {
+  if (expandedFolders.has(id)) {
+    expandedFolders.delete(id);
+  } else {
+    expandedFolders.add(id);
+  }
+  renderFolders();
+}
+
+// Delegation for Folder Clicks
+function handleFolderClick(e) {
+  const li = e.target.closest('.folder-item');
+  if (!li) return;
+  
+  const id = li.dataset.id;
+  if (!id) return;
+
+  // Toggle icon logic
+  if (e.target.classList.contains('toggle-icon')) {
+    e.stopPropagation();
+    toggleFolder(id);
+    return;
+  }
+
+  activeFolderId = id;
+  renderApp();
+}
+
+function getAllChildFolderIds(parentId) {
+  let ids = [parentId];
+  const children = folders.filter(f => String(f.parentId) === String(parentId));
+  children.forEach(child => {
+    ids = ids.concat(getAllChildFolderIds(child.id));
+  });
+  return ids;
+}
+
+function renderKeywords(searchString = '') {
+  let filteredKeywords = [];
+  
+  if (activeFolderId === 'all') {
+    filteredKeywords = [...keywords];
+  } else {
+    // Get all relevant folder IDs (self + all descendants)
+    const targetIds = getAllChildFolderIds(activeFolderId);
+    filteredKeywords = keywords.filter(k => targetIds.includes(k.folderId));
+  }
+  
+  // Dynamic Header Generation (Last Month 3 Days + Current Month)
+  const headerRow = document.getElementById('tableHeaderDates');
+  headerRow.innerHTML = `
+    <th width="60">이미지</th>
+    <th width="200">상품정보 / MID</th>
+  `;
+  
+  // Just show 1 to 31 for demo (simplified date picker later)
+  for (let i = 1; i <= 31; i++) {
+    const th = document.createElement('th');
+    th.className = 'cell-daily';
+    th.textContent = `${i}일`;
+    headerRow.appendChild(th);
   }
 
   itemCountEl.textContent = filteredKeywords.length;
   keywordTableBody.innerHTML = '';
-  selectAllCheckbox.checked = false;
 
   if (filteredKeywords.length === 0) {
     emptyStateEl.style.display = 'block';
@@ -118,41 +245,30 @@ function renderKeywords(searchString = '') {
     filteredKeywords.forEach(k => {
       const tr = document.createElement('tr');
       
-      // Calculate rank HTML
-      let rankHtml = '';
-      if(k.change > 0) {
-         rankHtml = `<span class="tag-up"><i class="fas fa-caret-up"></i> ${k.change}</span>`;
-      } else if (k.change < 0) {
-         rankHtml = `<span class="tag-down"><i class="fas fa-caret-down"></i> ${Math.abs(k.change)}</span>`;
-      } else {
-         rankHtml = `<span style="color:#94a3b8">-</span>`;
+      let columnsHtml = `
+        <td style="text-align:center;">
+          <img src="${k.imageUrl || 'https://via.placeholder.com/50'}" class="cell-image">
+        </td>
+        <td class="${k.highlight ? 'cell-highlight-yellow' : ''}">
+          <div class="cell-product-info">
+            <span class="cell-product-id">${k.mid}</span>
+            <span class="cell-product-name">${k.keyword}</span>
+            <span class="cell-product-id" style="color:var(--primary)">${k.price || '0'}원</span>
+          </div>
+        </td>
+      `;
+
+      // Render 31 day cells
+      for (let i = 1; i <= 31; i++) {
+        const value = k.history && k.history[i] ? k.history[i] : '';
+        const isSelected = (i === 5); // Just highlight "today" for demo
+        columnsHtml += `<td class="cell-daily ${isSelected ? 'cell-highlight-yellow' : ''}">${value}</td>`;
       }
 
-      tr.innerHTML = `
-        <td><input type="checkbox" class="row-checkbox" data-id="${k.id}"></td>
-        <td style="font-weight:500;">${k.keyword}</td>
-        <td>${k.mid}</td>
-        <td>${k.catalogMid || '-'}</td>
-        <td>${k.storeName || '-'}</td>
-        <td style="color:#64748b">${k.memo || '-'}</td>
-        <td><a href="#" class="action-link">${k.link}</a></td>
-        <td style="font-weight:600">${k.targetRank}</td>
-        <td>${k.yesterdayRank}</td>
-        <td>${rankHtml}</td>
-        <td><button class="btn-check-rank" data-id="${k.id}"><i class="fas fa-sync-alt" style="color:var(--primary)"></i></button></td>
-        <td><button class="btn-delete-row" data-id="${k.id}"><i class="fas fa-trash"></i></button></td>
-      `;
+      tr.innerHTML = columnsHtml;
       keywordTableBody.appendChild(tr);
     });
   }
-
-  // Bind single delete events
-  document.querySelectorAll('.btn-delete-row').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const id = e.currentTarget.dataset.id;
-      deleteKeyword(id);
-    });
-  });
 }
 
 // -------------------------------------------------------------
@@ -161,8 +277,17 @@ function renderKeywords(searchString = '') {
 
 function addFolder(name) {
   const newId = 'f-' + Date.now();
-  folders.push({ id: newId, name });
-  activeFolderId = newId; // Select the newly created folder automatically
+  // If active folder is a root category, add as child. Otherwise add to root.
+  const activeFolder = folders.find(f => f.id === activeFolderId);
+  const parentId = (activeFolder && !activeFolder.parentId) ? activeFolder.id : null;
+  
+  folders.push({ id: newId, name, parentId });
+  
+  if (parentId) {
+    expandedFolders.add(parentId); // Automatically expand parent
+  }
+  
+  activeFolderId = newId; 
   renderFolders();
   renderKeywords();
   showToast(`'${name}' 폴더가 생성되었습니다.`);
@@ -212,38 +337,72 @@ function showToast(message) {
 // -------------------------------------------------------------
 
 function setupEventListeners() {
-  
+  // Prevent duplicate listeners
+  if (isEventListenersSetup) return;
+  isEventListenersSetup = true;
+
+  // Safe helper to add listeners
+  const safeAddListener = (id, event, callback) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.removeEventListener(event, callback); // Clean update if somehow called
+      el.addEventListener(event, callback);
+    }
+  };
+
+  // Logo click triggers All Dashboard
+  const logo = document.querySelector('.sidebar-logo');
+  if (logo) {
+    logo.style.cursor = 'pointer';
+    logo.addEventListener('click', () => {
+      activeFolderId = 'all';
+      renderApp();
+    });
+  }
+
+  // Delegation on Folder List
+  safeAddListener('folderList', 'click', handleFolderClick);
+
   // Modals Open/Close
-  addFolderBtn.addEventListener('click', () => {
-    document.getElementById('newFolderName').value = '';
-    folderModal.classList.add('active');
+  safeAddListener('addFolderBtn', 'click', () => {
+    const input = document.getElementById('newFolderName');
+    if (input) input.value = '';
+    const modal = document.getElementById('folderModal');
+    if (modal) modal.classList.add('active');
   });
 
-  addProductBtn.addEventListener('click', () => {
-    document.getElementById('productForm').reset();
-    productModal.classList.add('active');
+  safeAddListener('addProductBtn', 'click', () => {
+    const form = document.getElementById('productForm');
+    if (form) form.reset();
+    const modal = document.getElementById('productModal');
+    if (modal) modal.classList.add('active');
   });
 
   document.querySelectorAll('.close-modal').forEach(btn => {
     btn.addEventListener('click', (e) => {
-      e.target.closest('.modal-overlay').classList.remove('active');
+      const overlay = e.target.closest('.modal-overlay');
+      if (overlay) overlay.classList.remove('active');
     });
   });
 
   // Action Buttons inside Modals
-  saveFolderBtn.addEventListener('click', () => {
-    const input = document.getElementById('newFolderName').value.trim();
+  safeAddListener('saveFolderBtn', 'click', () => {
+    const inputEl = document.getElementById('newFolderName');
+    const input = inputEl ? inputEl.value.trim() : '';
     if(input) {
       addFolder(input);
-      folderModal.classList.remove('active');
+      const modal = document.getElementById('folderModal');
+      if (modal) modal.classList.remove('active');
     } else {
       alert("폴더 이름을 입력해주세요.");
     }
   });
 
-  saveProductBtn.addEventListener('click', () => {
-    const keyword = document.getElementById('pdKeyword').value.trim();
-    const mid = document.getElementById('pdMid').value.trim();
+  safeAddListener('saveProductBtn', 'click', () => {
+    const keywordEl = document.getElementById('pdKeyword');
+    const midEl = document.getElementById('pdMid');
+    const keyword = keywordEl ? keywordEl.value.trim() : '';
+    const mid = midEl ? midEl.value.trim() : '';
     
     if(!keyword || !mid) {
       alert("필수 항목(*표시)을 입력해주세요.");
@@ -260,11 +419,12 @@ function setupEventListeners() {
     };
     
     addProduct(data);
-    productModal.classList.remove('active');
+    const modal = document.getElementById('productModal');
+    if (modal) modal.classList.remove('active');
   });
 
   // Checkbox Select All
-  selectAllCheckbox.addEventListener('change', (e) => {
+  safeAddListener('selectAll', 'change', (e) => {
     const checked = e.target.checked;
     document.querySelectorAll('.row-checkbox').forEach(cb => {
       cb.checked = checked;
@@ -272,7 +432,7 @@ function setupEventListeners() {
   });
 
   // Selected Delete (선택삭제)
-  deleteSelectedBtn.addEventListener('click', () => {
+  safeAddListener('deleteSelectedBtn', 'click', () => {
     const selectedIds = Array.from(document.querySelectorAll('.row-checkbox:checked'))
                              .map(cb => cb.dataset.id);
     if(selectedIds.length === 0) {
@@ -307,43 +467,57 @@ function setupEventListeners() {
   });
 
   // Search feature handling
-  searchInput.addEventListener('input', (e) => {
+  safeAddListener('searchInput', 'input', (e) => {
     renderKeywords(e.target.value.trim());
   });
   
   // Initialize and Search btn
   document.querySelectorAll('.btn-primary, .btn-secondary').forEach(btn => {
-    if(btn.textContent.includes('순위 새로고침')) {
+    const text = btn.textContent.trim();
+    
+    if(text.includes('순위 새로고침')) {
       btn.addEventListener('click', () => {
-        const folderKeywords = keywords.filter(k => k.folderId === activeFolderId);
-        if (folderKeywords.length === 0) return;
-
-        showToast("폴더 내 모든 키워드의 순위를 새로고침합니다 (최대 1000위 탐색)...");
+        const activeFolder = folders.find(f => f.id === activeFolderId);
+        const isParent = folders.some(f => f.parentId === activeFolderId);
+        const allTargetFolderIds = isParent ? getAllChildFolderIds(activeFolderId) : [activeFolderId];
+        const folderKeywords = keywords.filter(k => allTargetFolderIds.includes(k.folderId));
         
-        // Simulate mass update with 1000 rank logic
+        if (folderKeywords.length === 0) {
+          showToast("업데이트할 키워드가 없습니다.");
+          return;
+        }
+
+        showToast(`${activeFolder.name} 카테고리의 모든 순위를 새로고침합니다...`);
+        
         folderKeywords.forEach(k => {
           k.yesterdayRank = k.targetRank;
-          const randomVal = Math.floor(Math.random() * 1200) + 1; // 1200까지 생성
-          if (randomVal > 1000) {
-            k.targetRank = "순위 밖";
-            k.change = 0;
-          } else {
-            k.targetRank = randomVal.toString();
-            k.change = (k.yesterdayRank === '확인필요' || k.yesterdayRank === '-' || k.yesterdayRank === '순위 밖') 
-                       ? 0 : parseInt(k.yesterdayRank) - randomVal;
-          }
+          const randomVal = (Math.random() * 50).toFixed(1);
+          k.targetRank = randomVal;
+          k.change = (k.yesterdayRank === '-') ? 0 : (parseFloat(k.yesterdayRank) - parseFloat(randomVal)).toFixed(1);
         });
         
         setTimeout(() => {
           renderKeywords();
-          showToast("전체 순위 새로고침 완료 (1000위 이내 결과 반영)");
+          showToast("전체 순위 새로고침 완료");
+        }, 1200);
+      });
+    }
+    
+    if(text.includes('엑셀 업로드')) {
+      btn.addEventListener('click', () => {
+        showToast("엑셀 파일을 분석 중입니다...");
+        setTimeout(() => {
+          showToast("엑셀 업로드 완료: 7개의 새로운 키워드가 추가되었습니다.");
+          // 더미 데이터 추가 시뮬레이션
+          addFolder("엑셀_수집_데이터");
         }, 1500);
       });
     }
-    if(btn.textContent === '검색' || btn.textContent === '검색하기') {
+
+    if(text === '검색' || text === '검색하기') {
       btn.addEventListener('click', () => renderKeywords(searchInput.value.trim()));
     }
-    if(btn.textContent === '초기화') {
+    if(text === '초기화') {
       btn.addEventListener('click', () => {
         clearSearch();
         renderKeywords();
@@ -352,5 +526,4 @@ function setupEventListeners() {
   });
 }
 
-// Start application
-initApp();
+// Application Start handled by DOMContentLoaded listener at the top

@@ -7,6 +7,8 @@ let currentMonth = new Date().getMonth() + 1; // 1-indexed
 
 let allFolders = [];
 let activeFolderId = null;
+let currentKeywords = []; // 전체 키워드 저장
+let filteredKeywords = []; // 필터링된 키워드 저장
 
 async function initDashboard() {
     setupMonthSelector();
@@ -84,43 +86,96 @@ function renderFolderTree(folder, container, depth) {
         document.querySelectorAll('.folder-item').forEach(el => el.classList.remove('active'));
         li.classList.add('active');
         
-        // As per requirement: "맨 마지막 폴더를 클릭하면 맨 마지막에 들어있는 키워드만 보이면 됩니다"
-        if (!hasChildren) {
-            loadKeywords(folder.id);
-        } else {
-            // Clear table or show nothing?
-            document.getElementById('keywordTableBody').innerHTML = '';
-        }
+        // Load keywords for this folder and all subfolders
+        loadKeywordsRecursive(folder.id);
     };
 
     container.appendChild(li);
     children.forEach(child => renderFolderTree(child, container, depth + 1));
 }
 
-async function loadKeywords(folderId) {
+async function loadKeywordsRecursive(parentId) {
     try {
-        const response = await fetch(`api/keywords/folder/${folderId}`);
-        const keywords = await response.json();
+        const folderIds = getAllChildFolderIds(parentId);
+        let allKeywords = [];
         
-        // Fetch daily data for each keyword
-        for (let k of keywords) {
-            const dailyRes = await fetch(`api/dashboard/data/${k.id}?year=${currentYear}&month=${currentMonth}`);
-            k.dailyData = await dailyRes.json();
+        // Fetch keywords for each folder (DASHBOARD 타입만 가져오도록 API 변경)
+        for (let fid of folderIds) {
+            const response = await fetch(`api/dashboard/keywords?folderId=${fid}`);
+            if (response.ok) {
+                const keywords = await response.json();
+                allKeywords = allKeywords.concat(keywords);
+            }
         }
         
-        renderKeywords(keywords);
+        // Fetch daily data for each keyword
+        for (let k of allKeywords) {
+            const dailyRes = await fetch(`api/dashboard/data/${k.id}?year=${currentYear}&month=${currentMonth}`);
+            if (dailyRes.ok) {
+                k.dailyData = await dailyRes.json();
+            } else {
+                k.dailyData = [];
+            }
+        }
+        
+        currentKeywords = allKeywords;
+        filteredKeywords = allKeywords;
+        updateMidSelector();
+        renderKeywords(filteredKeywords);
+        document.getElementById('currentFolderName').textContent = allFolders.find(f => f.id == parentId)?.name || '기본 폴더';
     } catch (error) {
-        console.error('Error loading keywords:', error);
+        console.error('Error loading keywords recursively:', error);
     }
+}
+
+function updateMidSelector() {
+    const selector = document.getElementById('midFilterSelect');
+    if (!selector) return;
+    
+    // Get unique Product Numbers
+    const productNumbers = [...new Set(currentKeywords.map(k => k.productNumber).filter(pn => pn))].sort();
+    
+    selector.innerHTML = '<option value="">전체 상품번호</option>';
+    productNumbers.forEach(pn => {
+        const opt = document.createElement('option');
+        opt.value = pn;
+        opt.textContent = pn;
+        selector.appendChild(opt);
+    });
+}
+
+function filterKeywords() {
+    const filterVal = document.getElementById('midFilterSelect').value;
+    
+    if (!filterVal) {
+        filteredKeywords = currentKeywords;
+    } else {
+        filteredKeywords = currentKeywords.filter(k => k.productNumber === filterVal);
+    }
+    renderKeywords(filteredKeywords);
+}
+
+function getAllChildFolderIds(parentId) {
+    let ids = [parentId];
+    const children = allFolders.filter(f => f.parentId == parentId);
+    children.forEach(child => {
+        ids = ids.concat(getAllChildFolderIds(child.id));
+    });
+    return ids;
+}
+
+async function loadKeywords(folderId) {
+    // Legacy support or direct load
+    await loadKeywordsRecursive(folderId);
 }
 
 function renderTableHeaders() {
     const headerRow = document.getElementById('tableHeaderRow');
+    const filterRow = document.getElementById('tableFilterRow');
+    
     // Clear dynamic columns
-    // Fixed columns: Checkbox(0), Image(1), Info(2)
-    while (headerRow.children.length > 3) {
-        headerRow.removeChild(headerRow.lastChild);
-    }
+    while (headerRow.children.length > 3) headerRow.removeChild(headerRow.lastChild);
+    while (filterRow.children.length > 3) filterRow.removeChild(filterRow.lastChild);
     
     const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
     for (let i = 1; i <= daysInMonth; i++) {
@@ -128,6 +183,11 @@ function renderTableHeaders() {
         th.textContent = `${i}일`;
         th.style.minWidth = '70px';
         headerRow.appendChild(th);
+        
+        const fth = document.createElement('th');
+        fth.style.textAlign = 'center';
+        fth.textContent = '-';
+        filterRow.appendChild(fth);
     }
 }
 
@@ -136,44 +196,48 @@ function renderKeywords(keywords) {
     tbody.innerHTML = '';
     
     const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+    renderTableHeaders(); 
+    
+    // For totals
+    const dailyTotals = new Array(daysInMonth).fill(0);
     
     keywords.forEach(k => {
         const tr = document.createElement('tr');
-        
-        // Fixed Columns
+        // ... 생략 (기존 렌더링 로직)
         let html = `
-            <td><input type="checkbox" class="row-checkbox" data-id="${k.id}"></td>
-            <td>
-                <div class="img-square-container img-upload-trigger" onclick="triggerImageUpload(${k.id})">
+            <td style="text-align:center;"><input type="checkbox" class="row-checkbox" data-id="${k.id}"></td>
+            <td style="text-align:center;">
+                <div class="cell-image-container" onclick="triggerImageUpload(${k.id})" style="cursor:pointer;">
                     ${k.imageUrl ? 
-                        `<img src="${k.imageUrl}" class="img-thumbnail" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'img-placeholder\'><i class=\'fas fa-plus\'></i></div>'">` : 
-                        `<div class="img-placeholder"><i class="fas fa-plus"></i></div>`
+                        `<img src="${k.imageUrl}" class="cell-image" onerror="this.src='https://via.placeholder.com/50';">` : 
+                        `<div class="img-placeholder"><i class="fas fa-camera"></i></div>`
                     }
                 </div>
             </td>
-            <td class="product-info-cell">
-                <div class="product-info-horizontal">
-                    <span class="info-folder">${getParentFolderName(k.folderId)}</span>
-                    <span class="info-divider">|</span>
-                    <div class="info-keyword-wrap">
-                        <span class="info-keyword editable-text" onclick="editKeywordName(${k.id}, '${k.keyword}')">${k.keyword}</span>
-                        <span class="rank-indicator">${renderRankChange(k.rankChange)}</span>
+            <td class="${k.highlight ? 'cell-highlight-yellow' : ''}" style="padding: 10px 15px;">
+                <div class="cell-product-info">
+                    <div style="display:flex; align-items:center; gap:5px;">
+                        <span class="cell-product-id editable-text" onclick="inlineEdit(this, ${k.id}, 'productNumber')">${k.productNumber || '상품번호 입력'}</span>
                     </div>
-                    <span class="info-divider">|</span>
-                    <span class="info-price editable-text" onclick="editPrice(${k.id}, ${k.price})">${k.price.toLocaleString()}원</span>
+                    <div class="cell-product-name editable-text" onclick="inlineEdit(this, ${k.id}, 'productName')" style="margin: 4px 0;">${k.productName || '상품명 입력'}</div>
+                    <div class="cell-product-id" style="color:var(--primary); font-weight:800; cursor:pointer;" onclick="editPrice(${k.id}, ${k.price})">
+                        ${(k.price || 0).toLocaleString()}원
+                    </div>
                 </div>
             </td>
         `;
         
-        // Daily Data Columns
         for (let i = 1; i <= daysInMonth; i++) {
             const dateStr = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
             const dayData = k.dailyData.find(d => d.date === dateStr) || { inflowCount: 0, dailyMemo: '' };
             
+            dailyTotals[i-1] += (dayData.inflowCount || 0);
+
+            const isHighlighted = (dayData.rank && dayData.rank <= 10); 
             html += `
-                <td>
+                <td class="cell-daily ${isHighlighted ? 'cell-highlight-yellow' : ''}">
                     <div class="cell-container">
-                        <div class="inflow-row">${dayData.inflowCount || 0}</div>
+                        <div class="inflow-row" style="font-size:1.1rem;">${dayData.inflowCount || ''}</div>
                         <div class="memo-row" onclick="editMemo(${k.id}, '${dateStr}', '${dayData.dailyMemo || ''}')" title="${dayData.dailyMemo || ''}">
                             ${dayData.dailyMemo || ''}
                         </div>
@@ -181,12 +245,23 @@ function renderKeywords(keywords) {
                 </td>
             `;
         }
-        
         tr.innerHTML = html;
         tbody.appendChild(tr);
     });
 
+    renderTableFooter(dailyTotals);
     document.getElementById('itemCount').textContent = keywords.length;
+}
+
+function renderTableFooter(totals) {
+    const tfoot = document.getElementById('tableFooterRow');
+    let html = `
+        <tr>
+            <td colspan="3" style="text-align:right; padding-right:20px;">일별 유입수 합계</td>
+            ${totals.map(t => `<td style="text-align:center; padding: 12px 10px; color: var(--primary); font-size:1.1rem;">${t.toLocaleString()}</td>`).join('')}
+        </tr>
+    `;
+    tfoot.innerHTML = html;
 }
 
 function getParentFolderName(folderId) {
@@ -201,7 +276,37 @@ function renderRankChange(change) {
 }
 
 // Interactivity
+function inlineEdit(el, id, field) {
+    if (el.querySelector('input')) return;
+    
+    const originalValue = (el.textContent === '상품번호 입력' || el.textContent === '상품명 입력') ? '' : el.textContent;
+    el.innerHTML = `<input type="text" class="inline-input" value="${originalValue}" style="width:100%; padding:2px 5px; border:1px solid var(--primary); border-radius:4px;">`;
+    const input = el.querySelector('input');
+    input.focus();
+    
+    const save = async () => {
+        const newValue = input.value.trim();
+        if (newValue !== originalValue) {
+            const data = {};
+            data[field] = newValue;
+            await updateKeywordInfo(id, data);
+        } else {
+            el.textContent = originalValue || (field === 'productNumber' ? '상품번호 입력' : (field === 'productName' ? '상품명 입력' : ''));
+        }
+    };
+    
+    input.onblur = save;
+    input.onkeydown = (e) => {
+        if (e.key === 'Enter') save();
+        if (e.key === 'Escape') {
+            input.onblur = null;
+            el.textContent = originalValue || (field === 'productNumber' ? '상품번호 입력' : (field === 'productName' ? '상품명 입력' : ''));
+        }
+    };
+}
+
 async function editKeywordName(id, currentName) {
+    // Legacy support (replaced by inlineEdit)
     const newName = prompt('상품명을 변경하시겠습니까?', currentName);
     if (newName && newName !== currentName) {
         await updateKeywordInfo(id, { keyword: newName });
@@ -210,8 +315,8 @@ async function editKeywordName(id, currentName) {
 
 async function editPrice(id, currentPrice) {
     const newPrice = prompt('가격을 변경하시겠습니까?', currentPrice);
-    if (newPrice !== null && !isNaN(newPrice)) {
-        await updateKeywordInfo(id, { price: parseInt(newPrice) });
+    if (newPrice !== null && !isNaN(newPrice.replace(/,/g,''))) {
+        await updateKeywordInfo(id, { price: parseInt(newPrice.replace(/,/g,'')) });
     }
 }
 
@@ -228,15 +333,27 @@ async function editMemo(id, date, currentMemo) {
 }
 
 async function updateKeywordInfo(id, data) {
-    const res = await fetch('api/dashboard/update-info', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: id, ...data })
-    });
-    if (res.ok) loadKeywords(activeFolderId);
+    try {
+        const res = await fetch('api/dashboard/update-info', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id, ...data })
+        });
+        if (res.ok) {
+            showToast('수정되었습니다.');
+            if (activeFolderId) loadKeywords(activeFolderId);
+        }
+    } catch (err) {
+        showToast('수정 실패');
+    }
 }
-
 function setupEventListeners() {
+    // MID Filter
+    const midFilterSelect = document.getElementById('midFilterSelect');
+    if (midFilterSelect) {
+        midFilterSelect.addEventListener('change', filterKeywords);
+    }
+
     // Excel upload
     const uploadBtn = document.getElementById('excelUploadBtn');
     const fileInput = document.getElementById('excelFile');
@@ -252,15 +369,21 @@ function setupEventListeners() {
             
             showToast('엑셀 업로드 중...');
             try {
-                const res = await fetch('api/dashboard/excel-upload', {
+                const url = activeFolderId ? `api/dashboard/excel-upload?folderId=${activeFolderId}` : `api/dashboard/excel-upload`;
+                const res = await fetch(url, {
                     method: 'POST',
                     body: formData
                 });
                 if (res.ok) {
-                    showToast('업로드 완료!');
-                    if (activeFolderId) loadKeywords(activeFolderId);
+                    showToast('엑셀 업로드 완료!');
+                    if (activeFolderId) {
+                        loadKeywords(activeFolderId);
+                    } else {
+                        location.reload();
+                    }
                 } else {
-                    showToast('업로드 실패: ' + await res.text());
+                    const errorMsg = await res.text();
+                    alert('업로드 실패: ' + errorMsg + '\n\n엑셀 형식을 확인해 주세요.\n(B열: 상품번호, G열: 유입수)');
                 }
             } catch (err) {
                 showToast('오류 발생');

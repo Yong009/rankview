@@ -60,6 +60,7 @@
                     <button class="btn btn-primary" id="addProductBtn"><i class="fas fa-plus-circle"></i> 상품 등록</button>
                     <button class="btn btn-primary" id="refreshAllBtn"><i class="fas fa-sync-alt"></i> 순위 새로고침</button>
                     <a href="/" class="btn btn-secondary" style="text-decoration:none;"><i class="fas fa-list"></i> 기본 리스트 뷰</a>
+                    <a href="history" class="btn btn-primary" style="text-decoration:none; background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);"><i class="fas fa-history"></i> 순위 히스토리</a>
                     <button class="btn btn-secondary"><i class="fas fa-bullhorn"></i> 공지사항</button>
                     <div style="display:flex; flex-direction:column; align-items:center;">
                         <button class="btn btn-secondary" id="excelUploadBtn"><i class="fas fa-file-excel"></i> 엑셀 업로드</button>
@@ -94,10 +95,23 @@
                                 <th width="400">상품 정보 (상품번호 | 상품명 | 가격)</th>
                                 <!-- JS에서 1일~31일 컬럼 동적 생성 -->
                             </tr>
+                            <tr id="tableFilterRow" class="filter-row">
+                                <th style="text-align:center;">-</th>
+                                <th style="text-align:center;">-</th>
+                                <th>
+                                    <select id="midFilterSelect" class="header-filter">
+                                        <option value="">전체 상품번호</option>
+                                    </select>
+                                </th>
+                                <!-- JS에서 날짜별 필터/합계 헤더 생성 가능 -->
+                            </tr>
                         </thead>
                         <tbody id="keywordTableBody">
                             <!-- Data rendered by JS -->
                         </tbody>
+                        <tfoot id="tableFooterRow" style="background: #f8fafc; font-weight: 800; position: sticky; bottom: 0; z-index: 5;">
+                            <!-- 합계 등이 JS에서 렌더링됨 -->
+                        </tfoot>
                     </table>
                 </div>
                 <div id="emptyState" style="text-align:center; padding: 100px 0; color: #a0aec0; display:none;">

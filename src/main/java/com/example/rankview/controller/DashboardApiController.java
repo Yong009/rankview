@@ -21,7 +21,12 @@ public class DashboardApiController {
     private DashboardService dashboardService;
 
     @Autowired
-    private KeywordRankRepository keywordRankRepository;
+    private com.example.rankview.repository.KeywordRankRepository keywordRepository;
+
+    @GetMapping("/keywords")
+    public ResponseEntity<List<KeywordRank>> getDashboardKeywords(@RequestParam Long folderId) {
+        return ResponseEntity.ok(keywordRepository.findByFolderIdAndDataType(folderId, "DASHBOARD"));
+    }
 
     @GetMapping("/data/{keywordId}")
     public ResponseEntity<?> getDashboardData(@PathVariable Long keywordId, 
@@ -42,9 +47,10 @@ public class DashboardApiController {
     }
 
     @PostMapping("/excel-upload")
-    public ResponseEntity<?> uploadExcel(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<?> uploadExcel(@RequestParam("file") MultipartFile file, 
+                                        @RequestParam(value = "folderId", required = false) Long folderId) {
         try {
-            dashboardService.processExcelUpload(file);
+            dashboardService.processExcelUpload(file, folderId);
             return ResponseEntity.ok("Excel processed successfully");
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Error processing excel: " + e.getMessage());
@@ -63,9 +69,9 @@ public class DashboardApiController {
             java.nio.file.Files.copy(file.getInputStream(), path, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             
             // Update DB
-            KeywordRank keyword = keywordRankRepository.findById(id).orElseThrow();
+            KeywordRank keyword = keywordRepository.findById(id).orElseThrow();
             keyword.setImageUrl("/img/" + fileName);
-            keywordRankRepository.save(keyword);
+            keywordRepository.save(keyword);
             
             return ResponseEntity.ok("Image uploaded successfully");
         } catch (Exception e) {
@@ -76,19 +82,23 @@ public class DashboardApiController {
     @PostMapping("/update-info")
     public ResponseEntity<?> updateKeywordInfo(@RequestBody Map<String, Object> payload) {
         Long id = Long.valueOf(payload.get("id").toString());
-        KeywordRank keyword = keywordRankRepository.findById(id).orElseThrow();
+        KeywordRank keyword = keywordRepository.findById(id).orElseThrow();
         
         if (payload.containsKey("price")) {
             keyword.setPrice(Integer.parseInt(payload.get("price").toString()));
         }
-        if (payload.containsKey("keyword")) {
-            keyword.setKeyword((String) payload.get("keyword"));
+        if (payload.containsKey("keyword") || payload.containsKey("productName")) {
+            String name = (String) (payload.containsKey("productName") ? payload.get("productName") : payload.get("keyword"));
+            keyword.setProductName(name);
         }
         if (payload.containsKey("imageUrl")) {
             keyword.setImageUrl((String) payload.get("imageUrl"));
         }
+        if (payload.containsKey("productNumber")) {
+            keyword.setProductNumber((String) payload.get("productNumber"));
+        }
         
-        keywordRankRepository.save(keyword);
+        keywordRepository.save(keyword);
         return ResponseEntity.ok().build();
     }
 }

@@ -24,14 +24,16 @@ public class KeywordController {
     @GetMapping
     public List<KeywordRank> getKeywords(@RequestParam(required = false) Long folderId) {
         if (folderId != null) {
-            return keywordRepository.findByFolderId(folderId);
+            return keywordRepository.findByFolderIdAndDataType(folderId, "RANK");
         }
-        return keywordRepository.findAll();
+        return keywordRepository.findAll().stream()
+                .filter(k -> "RANK".equals(k.getDataType()))
+                .toList();
     }
 
     @GetMapping("/folder/{folderId}")
     public List<KeywordRank> getKeywordsByFolder(@PathVariable Long folderId) {
-        return keywordRepository.findByFolderId(folderId);
+        return keywordRepository.findByFolderIdAndDataType(folderId, "RANK");
     }
 
     @PostMapping

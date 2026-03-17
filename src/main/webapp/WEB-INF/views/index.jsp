@@ -41,6 +41,8 @@
                    <% if ("ADMIN".equals(session.getAttribute("role"))) { %>
                         <a href="/admin/users" class="btn btn-secondary" style="border-color:var(--primary); color:var(--primary); text-decoration:none;"><i class="fas fa-user-shield"></i> 관리자 모드</a>
                    <% } %>
+                    <a href="/" class="btn btn-secondary" style="text-decoration:none;"><i class="fas fa-list"></i> 기본 리스트 뷰</a>
+                    <a href="history" class="btn btn-primary" style="text-decoration:none; background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);"><i class="fas fa-history"></i> 순위 히스토리</a>
                    <a href="/logout" class="btn btn-secondary btn-logout" style="text-decoration:none;"><i class="fas fa-sign-out-alt"></i> 로그아웃</a>
                 </div>
             </header>
@@ -59,7 +61,8 @@
                 <div class="action-buttons-left">
                     <button class="btn btn-primary" id="addProductBtn"><i class="fas fa-plus-circle"></i> 상품 등록</button>
                     <button class="btn btn-primary" id="refreshAllBtn"><i class="fas fa-sync-alt"></i> 순위 새로고침</button>
-                    <a href="dashboard" class="btn btn-primary" style="text-decoration:none; background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);"><i class="fas fa-chart-line"></i> 대시보드 보기</a>
+                    <a href="dashboard" class="btn btn-primary" style="text-decoration:none; background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);"><i class="fas fa-chart-line"></i> 대시보드</a>
+                    <a href="history" class="btn btn-primary" style="text-decoration:none; background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);"><i class="fas fa-history"></i> 순위 히스토리</a>
                     <button class="btn btn-secondary"><i class="fas fa-bullhorn"></i> 공지사항</button>
                     <div style="display:flex; flex-direction:column; align-items:center;">
                         <button class="btn btn-secondary" id="excelUploadBtn"><i class="fas fa-file-excel"></i> 엑셀 업로드</button>

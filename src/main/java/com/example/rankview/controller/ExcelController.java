@@ -1,7 +1,6 @@
 package com.example.rankview.controller;
 
 import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -52,33 +51,16 @@ public class ExcelController {
 
     @GetMapping("/download-sample")
     public ResponseEntity<byte[]> downloadSample() {
-        try (Workbook workbook = new XSSFWorkbook();
-                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
-
-            Sheet sheet = workbook.createSheet("Keyword_Sample");
-            Row headerRow = sheet.createRow(0);
-            String[] headers = { "키워드", "MID", "카탈로그 MID", "스토어명", "메모", "상품주소(URL)" };
-
-            for (int i = 0; i < headers.length; i++) {
-                Cell cell = headerRow.createCell(i);
-                cell.setCellValue(headers[i]);
+        try {
+            java.io.File file = new java.io.File("c:\\web-project\\유입율.xlsx");
+            if (!file.exists()) {
+                return ResponseEntity.notFound().build();
             }
-
-            // Example data row
-            Row dataRow = sheet.createRow(1);
-            dataRow.createCell(0).setCellValue("무선 이어폰");
-            dataRow.createCell(1).setCellValue("87495077064");
-            dataRow.createCell(2).setCellValue("12345");
-            dataRow.createCell(3).setCellValue("테스트 스토어");
-            dataRow.createCell(4).setCellValue("메모 예시입니다.");
-            dataRow.createCell(5).setCellValue("https://search.shopping.naver.com/...");
-
-            workbook.write(out);
-
+            byte[] bytes = java.nio.file.Files.readAllBytes(file.toPath());
             return ResponseEntity.ok()
-                    .header("Content-Disposition", "attachment; filename=keyword_upload_sample.xlsx")
+                    .header("Content-Disposition", "attachment; filename=inflow_sample.xlsx")
                     .header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                    .body(out.toByteArray());
+                    .body(bytes);
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.internalServerError().build();

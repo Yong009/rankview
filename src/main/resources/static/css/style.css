@@ -676,3 +676,59 @@ body {
   color: var(--primary);
   font-size: 0.95rem;
 }
+
+/* --- Pre-existing styles above --- */
+
+/* Premium History Calendar View Styles */
+.cell-daily {
+  text-align: center !important;
+  min-width: 60px !important;
+  font-weight: 500;
+  border-right: 1px solid #f1f5f9 !important;
+  font-family: 'JetBrains Mono', 'Pretendard', monospace;
+}
+
+.cell-highlight-yellow {
+  background-color: #ffff00cc !important; /* Vivid Yellow from mock */
+  font-weight: 800 !important;
+  color: #000 !important;
+}
+
+.cell-product-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cell-product-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text-main);
+  white-space: normal;
+  line-height: 1.3;
+}
+
+.cell-product-id {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-family: monospace;
+}
+
+.cell-image {
+  width: 45px;
+  height: 45px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #eee;
+}
+
+/* Fix table header for dates */
+.data-table thead th.cell-daily {
+  background: #f8fafc;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  padding: 8px !important;
+}
+
+.path-parent { color: var(--text-muted); font-weight: 400; }
+.path-current { color: var(--text-main); font-weight: 800; border-bottom: 2px solid var(--primary); }

@@ -1,9 +1,13 @@
 package com.example.rankview.service;
 
+import com.example.rankview.entity.KeywordDailyData;
 import com.example.rankview.entity.KeywordRank;
+import com.example.rankview.repository.KeywordDailyDataRepository;
 import com.example.rankview.repository.KeywordRankRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Service
@@ -11,6 +15,9 @@ public class RankUpdateService {
 
     @Autowired
     private KeywordRankRepository keywordRankRepository;
+
+    @Autowired
+    private KeywordDailyDataRepository dailyDataRepository;
 
     @Autowired
     private ShoppingRankApiCaller shoppingRankApiCaller;
@@ -79,7 +86,24 @@ public class RankUpdateService {
             }
         }
 
+        // Update Daily Data for History
+        updateDailyRankSnapshot(rank, now.toLocalDate(), newRankValue);
+
         rank.setLastUpdate(LocalDateTime.now());
         return keywordRankRepository.save(rank);
+    }
+
+    private void updateDailyRankSnapshot(KeywordRank keyword, LocalDate date, int rankValue) {
+        KeywordDailyData dailyData = dailyDataRepository.findByKeywordRankAndDate(keyword, date)
+                .orElseGet(() -> {
+                    KeywordDailyData newData = new KeywordDailyData();
+                    newData.setKeywordRank(keyword);
+                    newData.setDate(date);
+                    return newData;
+                });
+        // rankValue가 -1인 경우 '순위 밖'을 의미하므로 0 또는 특정값으로 저장할 수 있음
+        // 여기서는 -1 그대로 저장하거나 0으로 저장
+        dailyData.setRank(rankValue);
+        dailyDataRepository.save(dailyData);
     }
 }

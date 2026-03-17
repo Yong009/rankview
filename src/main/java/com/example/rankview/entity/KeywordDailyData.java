@@ -15,6 +15,7 @@ public class KeywordDailyData {
 
     private LocalDate date;
     
+    private Integer rank = 0;
     private Integer inflowCount = 0;
     
     private String dailyMemo;
@@ -42,6 +43,14 @@ public class KeywordDailyData {
 
     public void setDate(LocalDate date) {
         this.date = date;
+    }
+
+    public Integer getRank() {
+        return rank;
+    }
+
+    public void setRank(Integer rank) {
+        this.rank = rank;
     }
 
     public Integer getInflowCount() {
