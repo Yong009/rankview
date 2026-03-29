@@ -37,7 +37,9 @@ public class KeywordController {
     }
 
     @PostMapping
-    public KeywordRank saveKeyword(@RequestBody KeywordRank keyword) {
+    public KeywordRank saveKeyword(@RequestBody KeywordRank keyword, jakarta.servlet.http.HttpSession session) {
+        String username = (String) session.getAttribute("user");
+        keyword.setUsername(username);
         return keywordRepository.save(keyword);
     }
 

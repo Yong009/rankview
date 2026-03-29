@@ -32,12 +32,19 @@ public class KeywordRank {
     private int price;
     private String imageUrl;
     private LocalDateTime lastUpdate;
+    private String username;
+
+    @OneToMany(mappedBy = "keywordRank", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private java.util.List<KeywordDailyData> dailyData;
 
     @ManyToOne
     @JoinColumn(name = "folder_id")
     private Folder folder;
 
     // Getters & Setters
+    public java.util.List<KeywordDailyData> getDailyData() { return dailyData; }
+    public void setDailyData(java.util.List<KeywordDailyData> dailyData) { this.dailyData = dailyData; }
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -86,6 +93,10 @@ public class KeywordRank {
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
 
+    public String getUsername() { return username; }
+    public void setUsername(String someUsername) { this.username = someUsername; }
+
     public Folder getFolder() { return folder; }
     public void setFolder(Folder folder) { this.folder = folder; }
 }
+

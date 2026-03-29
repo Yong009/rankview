@@ -34,144 +34,68 @@
         <!-- Main Content -->
         <main class="content-area">
             <header class="content-header">
-                <h1 class="user-status"><%= session.getAttribute("user") %>님 
-                    <span><%= "test123123".equals(session.getAttribute("user")) ? "관리자" : "일반 사용자" %></span>
-                </h1>
+                <h1 class="user-status"><%= session.getAttribute("user") %>님의 대시보드</h1>
                 <div class="action-buttons-right">
-                   <% if ("ADMIN".equals(session.getAttribute("role"))) { %>
-                        <a href="/admin/users" class="btn btn-secondary" style="border-color:var(--primary); color:var(--primary); text-decoration:none;"><i class="fas fa-user-shield"></i> 관리자 모드</a>
-                   <% } %>
-                   <a href="/logout" class="btn btn-secondary btn-logout" style="text-decoration:none;"><i class="fas fa-sign-out-alt"></i> 로그아웃</a>
+                    <a href="/" class="btn btn-secondary" style="text-decoration:none;"><i class="fas fa-list"></i> 기본 리스트 뷰</a>
+                    <a href="history" class="btn btn-primary" style="text-decoration:none; background: #10b981;"><i class="fas fa-history"></i> 히스토리</a>
+                    <a href="/logout" class="btn btn-secondary btn-logout" style="text-decoration:none;"><i class="fas fa-sign-out-alt"></i> 로그아웃</a>
                 </div>
             </header>
 
-            <!-- Rank Update Progress Indicator -->
-            <div id="rankProgressContainer" class="progress-notice" style="display:none;">
-                <div class="progress-info">
-                   <i class="fas fa-spinner fa-spin"></i> <span id="progressText">순위 정보를 조회하고 있습니다...</span>
-                </div>
-                <div class="progress-bar-bg">
-                   <div id="progressBar" class="progress-bar-fill" style="width: 0%"></div>
-                </div>
-            </div>
-
             <div class="action-bar-wrapper">
                 <div class="action-buttons-left">
-                    <button class="btn btn-primary" id="addProductBtn"><i class="fas fa-plus-circle"></i> 상품 등록</button>
-                    <button class="btn btn-primary" id="refreshAllBtn"><i class="fas fa-sync-alt"></i> 순위 새로고침</button>
-                    <a href="/" class="btn btn-secondary" style="text-decoration:none;"><i class="fas fa-list"></i> 기본 리스트 뷰</a>
-                    <a href="history" class="btn btn-primary" style="text-decoration:none; background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);"><i class="fas fa-history"></i> 순위 히스토리</a>
-                    <button class="btn btn-secondary"><i class="fas fa-bullhorn"></i> 공지사항</button>
-                    <div style="display:flex; flex-direction:column; align-items:center;">
-                        <button class="btn btn-secondary" id="excelUploadBtn"><i class="fas fa-file-excel"></i> 엑셀 업로드</button>
-                        <input type="file" id="excelFile" style="display:none" accept=".xlsx, .xls">
-                        <a href="/api/excel/download-sample" class="action-link" style="font-size: 11px; margin-top: 4px; text-decoration: none;"><i class="fas fa-download"></i> 샘플 다운로드</a>
-                    </div>
-
-                    <button class="btn btn-secondary"><i class="fas fa-key"></i> API 입력</button>
-                    <button class="btn btn-secondary" id="deleteSelectedBtn"><i class="fas fa-trash-alt"></i> 선택삭제</button>
+                    <button class="btn btn-primary" onclick="loadAllKeywords()"><i class="fas fa-sync-alt"></i> 전체 데이터 새로고침</button>
+                    <button class="btn btn-primary" id="uploadExcelBtn"><i class="fas fa-file-import"></i> 엑셀 업로드</button>
+                    <button class="btn btn-secondary" id="exportExcelBtn"><i class="fas fa-file-export"></i> 엑셀 내보내기</button>
                 </div>
                 
                 <div class="action-buttons-right">
                     <div class="search-box">
                         <i class="fas fa-search"></i>
-                        <input type="text" id="searchInput" placeholder="키워드, MID, 스토어명 검색...">
+                        <input type="text" id="searchInput" placeholder="상품명, ID, 키워드 검색...">
                     </div>
                 </div>
             </div>
 
-            <div class="current-folder-info">
-                <h3 id="currentFolderName">기본 폴더</h3>
+            <div class="current-folder-info" style="margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 20px;">
+                    <h3 id="currentFolderName" style="margin: 0;">전체 대시보드</h3>
+                    <div class="month-selector" style="display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.7); padding: 5px 15px; border-radius: 20px; border: 1px solid var(--border-color);">
+                        <button onclick="changeMonth(-1)" class="btn-icon" style="color: var(--primary);"><i class="fas fa-chevron-left"></i></button>
+                        <span id="currentMonthDisplay" style="font-weight: 700; font-size: 1rem; min-width: 100px; text-align: center; color: var(--text-main);">2026년 03월</span>
+                        <button onclick="changeMonth(1)" class="btn-icon" style="color: var(--primary);"><i class="fas fa-chevron-right"></i></button>
+                    </div>
+                </div>
                 <span class="item-count">총 <b id="itemCount">0</b>건</span>
             </div>
 
-            <div class="table-container">
+            <div class="table-container premium-excel-view">
                 <div class="table-scroll-wrapper">
                     <table class="data-table" id="mainTable">
                         <thead>
                             <tr id="tableHeaderRow">
-                                <th width="40"><input type="checkbox" id="selectAll"></th>
-                                <th width="60">이미지</th>
-                                <th width="400">상품 정보 (상품번호 | 상품명 | 가격)</th>
+                                <th class="sticky-col-1" width="60">이미지</th>
+                                <th class="sticky-col-2" width="220">상품명 / 상품ID</th>
                                 <!-- JS에서 1일~31일 컬럼 동적 생성 -->
                             </tr>
-                            <tr id="tableFilterRow" class="filter-row">
-                                <th style="text-align:center;">-</th>
-                                <th style="text-align:center;">-</th>
-                                <th>
-                                    <select id="midFilterSelect" class="header-filter">
-                                        <option value="">전체 상품번호</option>
-                                    </select>
-                                </th>
-                                <!-- JS에서 날짜별 필터/합계 헤더 생성 가능 -->
-                            </tr>
                         </thead>
-                        <tbody id="keywordTableBody">
+                        <tbody id="dashboardTableBody">
                             <!-- Data rendered by JS -->
                         </tbody>
-                        <tfoot id="tableFooterRow" style="background: #f8fafc; font-weight: 800; position: sticky; bottom: 0; z-index: 5;">
+                        <tfoot id="tableFooterRow">
                             <!-- 합계 등이 JS에서 렌더링됨 -->
                         </tfoot>
                     </table>
                 </div>
                 <div id="emptyState" style="text-align:center; padding: 100px 0; color: #a0aec0; display:none;">
                     <i class="fas fa-inbox" style="font-size: 3rem; margin-bottom: 20px;"></i>
-                    <p>등록된 키워드가 없습니다.</p>
+                    <p>등록된 데이터가 없습니다.</p>
                 </div>
             </div>
         </main>
     </div>
 
-    <!-- Modals -->
-    <div id="productModal" class="modal-overlay">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2><i class="fas fa-plus-circle"></i> 새 상품 등록</h2>
-                <button class="close-modal btn-icon"><i class="fas fa-times"></i></button>
-            </div>
-            <div class="modal-body">
-                <form id="productForm">
-                    <div class="form-group">
-                        <label>대상 폴더</label>
-                        <div id="modalFolderName" style="font-weight:700; color:var(--primary);">기본 폴더</div>
-                    </div>
-                    <div style="display:flex; gap:20px;">
-                        <div class="form-group" style="flex:1;">
-                            <label>키워드 <span style="color:red">*</span></label>
-                            <input type="text" id="pdKeyword" placeholder="예: 무선 이어폰">
-                        </div>
-                        <div class="form-group" style="flex:1;">
-                            <label>MID <span style="color:red">*</span></label>
-                            <input type="text" id="pdMid" placeholder="예: 87495077064">
-                        </div>
-                    </div>
-                    <div style="display:flex; gap:20px;">
-                        <div class="form-group" style="flex:1;">
-                            <label>카탈로그 MID</label>
-                            <input type="text" id="pdCatMid" placeholder="선택 사항">
-                        </div>
-                        <div class="form-group" style="flex:1;">
-                            <label>스토어명</label>
-                            <input type="text" id="pdStore" placeholder="스토어 이름">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>상품주소 (URL)</label>
-                        <input type="text" id="pdLink" placeholder="https://...">
-                    </div>
-                    <div class="form-group">
-                        <label>메모</label>
-                        <textarea id="pdMemo" rows="2" placeholder="기타 참고 사항"></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary close-modal">취소</button>
-                <button class="btn btn-primary" id="saveProductBtn">등록하기</button>
-            </div>
-        </div>
-    </div>
-
+    <!-- Modals (Add Folder) -->
     <div id="folderModal" class="modal-overlay">
         <div class="modal-content" style="max-width: 400px;">
             <div class="modal-header">
@@ -197,8 +121,66 @@
         </div>
     </div>
 
+    <!-- Excel Upload Modal -->
+    <div id="excelModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 450px;">
+            <div class="modal-header">
+                <h2>엑셀 데이터 업로드</h2>
+                <button class="close-modal btn-icon"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>업로드 대상 폴더</label>
+                    <select id="excelTargetFolder" class="form-control">
+                        <!-- JS에서 폴더 목록 채워줌 -->
+                    </select>
+                </div>
+                <div style="display: flex; gap: 15px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label>연도</label>
+                        <select id="excelYear" class="form-control">
+                            <option value="2024">2024년</option>
+                            <option value="2025">2025년</option>
+                            <option value="2026" selected>2026년</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label>월</label>
+                        <select id="excelMonth" class="form-control">
+                            <option value="1">1월</option>
+                            <option value="2">2월</option>
+                            <option value="3">3월</option>
+                            <option value="4">4월</option>
+                            <option value="5">5월</option>
+                            <option value="6">6월</option>
+                            <option value="7">7월</option>
+                            <option value="8">8월</option>
+                            <option value="9">9월</option>
+                            <option value="10">10월</option>
+                            <option value="11">11월</option>
+                            <option value="12">12월</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>파일 선택 (.xlsx, .xls)</label>
+                    <input type="file" id="excelFileInput" accept=".xlsx, .xls" class="form-control" style="padding: 8px;">
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">
+                        * A열: 상품명, B열: 상품번호(MID), G열부터 유입수 시작
+                    </p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary close-modal">취소</button>
+                <button class="btn btn-primary" id="startUploadBtn"><i class="fas fa-upload"></i> 업로드 시작</button>
+            </div>
+        </div>
+    </div>
+
     <div id="toast" class="toast">알림</div>
-    
+
+    <!-- Hidden Image Upload Input -->
+    <input type="file" id="dashboardImageInput" style="display:none;" accept="image/*">
 
     <!-- JS Load -->
     <script src="js/dashboard.js"></script>

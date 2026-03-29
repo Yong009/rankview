@@ -13,6 +13,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -33,6 +34,31 @@ public class DashboardService {
         LocalDate end = start.plusMonths(1).minusDays(1);
 
         return dailyDataRepository.findByKeywordRankAndDateBetween(keyword, start, end);
+    }
+
+    public List<KeywordRank> getKeywordsRecursive(Long folderId, String username, String role) {
+        List<com.example.rankview.entity.Folder> allFolders;
+        if ("ADMIN".equals(role)) {
+            allFolders = folderRepository.findAll();
+        } else {
+            allFolders = folderRepository.findByUsername(username);
+        }
+
+        List<Long> targetFolderIds = new ArrayList<>();
+        collectFolderIdsRecursive(folderId, allFolders, targetFolderIds);
+
+        if (targetFolderIds.isEmpty()) return new ArrayList<>();
+
+        return keywordRankRepository.findByFolderIdsAndUsername(targetFolderIds, username, "DASHBOARD");
+    }
+
+    private void collectFolderIdsRecursive(Long parentId, List<com.example.rankview.entity.Folder> allFolders, List<Long> targetIds) {
+        targetIds.add(parentId);
+        for (com.example.rankview.entity.Folder f : allFolders) {
+            if (parentId.equals(f.getParentId())) { 
+                collectFolderIdsRecursive(f.getId(), allFolders, targetIds);
+            }
+        }
     }
 
     @Transactional
@@ -56,8 +82,8 @@ public class DashboardService {
     private com.example.rankview.repository.FolderRepository folderRepository;
 
     @Transactional
-    public void processExcelUpload(MultipartFile file, Long folderId) throws IOException {
-        System.out.println("[ExcelUpload] Starting processing: " + file.getOriginalFilename() + " (Folder: " + folderId + ")");
+    public void processExcelUpload(MultipartFile file, Long folderId, Integer year, Integer month, String username) throws IOException {
+        System.out.println("[ExcelUpload] Starting processing: " + file.getOriginalFilename() + " (Folder: " + folderId + ", User: " + username + ")");
         try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
             Sheet sheet = workbook.getSheetAt(0);
             Row header = sheet.getRow(0);
@@ -70,80 +96,94 @@ public class DashboardService {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
 
-                // A열 (Index 0): 키워드
-                String keywordName = getCellValueAsString(row.getCell(0));
-                // B열 (Index 1): 상품번호
+                // A열 (Index 0): 상품명 (Keyword & ProductName)
+                String productNameFromExcel = getCellValueAsString(row.getCell(0));
+                // B열 (Index 1): 상품번호 (MID)
                 String productNumber = getCellValueAsString(row.getCell(1)); 
-                // C열 (Index 2): 상품명
-                String productNameFromExcel = getCellValueAsString(row.getCell(2)); 
                 
-                if (productNumber.isEmpty() && keywordName.isEmpty()) continue;
+                if (productNumber.isEmpty() && productNameFromExcel.isEmpty()) continue;
 
-                // 상품 검색 (DASHBOARD 타입만)
-                Optional<KeywordRank> keywordOpt = Optional.empty();
-                if (!productNumber.isEmpty()) {
-                    keywordOpt = keywordRankRepository.findByProductNumberAndDataType(productNumber, "DASHBOARD");
-                    if (keywordOpt.isEmpty()) {
-                        keywordOpt = keywordRankRepository.findByMidAndDataType(productNumber, "DASHBOARD");
-                    }
-                }
-                if (keywordOpt.isEmpty() && !keywordName.isEmpty()) {
-                    keywordOpt = keywordRankRepository.findByKeywordAndDataType(keywordName, "DASHBOARD");
-                }
+                // 상품 검색 및 생성 (DASHBOARD 타입, 사용자별 격리)
+                Optional<KeywordRank> keywordOpt = findDashboardKeyword(productNumber, productNameFromExcel, username);
                 
                 KeywordRank keyword;
                 if (keywordOpt.isPresent()) {
                     keyword = keywordOpt.get();
-                    if (!productNumber.isEmpty() && !productNumber.equals(keyword.getProductNumber())) {
+                    if (!productNumber.isEmpty()) {
                         keyword.setProductNumber(productNumber);
-                        keywordRankRepository.save(keyword);
+                    }
+                    if (folderId != null) {
+                        folderRepository.findById(folderId).ifPresent(keyword::setFolder);
                     }
                 } else {
-                    System.out.println("[ExcelUpload] Creating new DASHBOARD product: " + (productNameFromExcel.isEmpty() ? keywordName : productNameFromExcel));
                     keyword = new KeywordRank();
-                    keyword.setKeyword(keywordName.isEmpty() ? productNameFromExcel : keywordName);
-                    keyword.setProductName(productNameFromExcel.isEmpty() ? keywordName : productNameFromExcel);
+                    // A열의 상품명을 키워드와 상품명 모두에 적용
+                    keyword.setKeyword(productNameFromExcel);
+                    keyword.setProductName(productNameFromExcel);
                     keyword.setProductNumber(productNumber);
-                    keyword.setDataType("DASHBOARD"); // 대시보드 데이터로 표시
+                    keyword.setDataType("DASHBOARD");
+                    keyword.setUsername(username);
                     
                     if (folderId != null) {
                         folderRepository.findById(folderId).ifPresent(keyword::setFolder);
                     }
-                    keywordRankRepository.save(keyword);
                 }
+                keywordRankRepository.save(keyword);
 
-                // G열 (Index 6): 유입수 및 날짜 처리
-                int targetCol = 6; 
-                Cell dateHeaderCell = header.getCell(targetCol);
-                LocalDate date = parseDateFromHeader(dateHeaderCell);
-                
-                if (date == null) {
-                    date = parseDateFromHeader(row.getCell(0)); // A열 시도
-                }
-                if (date == null) {
-                    date = LocalDate.now().minusDays(1);
-                }
+                // G열 (Index 6)부터 마지막 열까지 시도 (날짜별 유입수)
+                for (int col = 6; col < row.getLastCellNum(); col++) {
+                    Cell dateHeaderCell = header.getCell(col);
+                    LocalDate date = parseDateFromHeader(dateHeaderCell, year, month);
+                    
+                    if (date == null && col == 6) {
+                        // 첫 번째 데이터 열(6번)의 헤더가 날짜가 아니면 A열 등에서 날짜를 찾아봄 (단일 날짜 행 형식)
+                        date = parseDateFromHeader(row.getCell(0), year, month); 
+                    }
+                    
+                    if (date == null) {
+                        // 여전히 날짜를 못 찾으면 오늘 또는 어제로 기본 설정하거나 스킵
+                        continue;
+                    }
 
-                Cell inflowCell = row.getCell(targetCol);
-                if (inflowCell != null) {
-                    try {
-                        int inflow = 0;
-                        if (inflowCell.getCellType() == CellType.NUMERIC) {
-                            inflow = (int) inflowCell.getNumericCellValue();
-                        } else if (inflowCell.getCellType() == CellType.STRING) {
-                            String val = inflowCell.getStringCellValue().replaceAll("[^0-9]", "");
-                            if (!val.isEmpty()) inflow = Integer.parseInt(val);
+                    Cell inflowCell = row.getCell(col);
+                    if (inflowCell != null) {
+                        try {
+                            int inflow = 0;
+                            if (inflowCell.getCellType() == CellType.NUMERIC) {
+                                inflow = (int) inflowCell.getNumericCellValue();
+                            } else if (inflowCell.getCellType() == CellType.STRING) {
+                                String val = inflowCell.getStringCellValue().replaceAll("[^0-9]", "");
+                                if (!val.isEmpty()) inflow = Integer.parseInt(val);
+                            }
+                            updateDailyInflow(keyword, date, inflow);
+                        } catch (Exception e) {
+                            System.err.println("[ExcelUpload] Row " + i + " Col " + col + " error: " + e.getMessage());
                         }
-                        updateDailyInflow(keyword, date, inflow);
-                    } catch (Exception e) {
-                        System.err.println("[ExcelUpload] Row " + i + " error: " + e.getMessage());
                     }
                 }
             }
         }
     }
 
-    private LocalDate parseDateFromHeader(Cell cell) {
+    private Optional<KeywordRank> findDashboardKeyword(String productNumber, String keywordName, String username) {
+        if (productNumber != null && !productNumber.isEmpty()) {
+            // 사용자별로 같은 상품번호가 있을 수 있으므로 username 필터링 필요 (Repository에 메서드 추가 필요)
+            // 일단 기존 메서드를 사용하되, username 추가 매칭 로직으로 보완하거나 Repository를 업데이트함.
+            // 여기서는 findByProductNumberAndDataTypeAndUsername 같은 것이 필요함.
+            Optional<KeywordRank> opt = keywordRankRepository.findByProductNumberAndDataType(productNumber, "DASHBOARD");
+            if (opt.isPresent() && username.equals(opt.get().getUsername())) return opt;
+            
+            opt = keywordRankRepository.findByMidAndDataType(productNumber, "DASHBOARD");
+            if (opt.isPresent() && username.equals(opt.get().getUsername())) return opt;
+        }
+        if (keywordName != null && !keywordName.isEmpty()) {
+            Optional<KeywordRank> opt = keywordRankRepository.findByKeywordAndDataType(keywordName, "DASHBOARD");
+            if (opt.isPresent() && username.equals(opt.get().getUsername())) return opt;
+        }
+        return Optional.empty();
+    }
+
+    private LocalDate parseDateFromHeader(Cell cell, Integer preferredYear, Integer preferredMonth) {
         if (cell == null) return null;
         try {
             if (cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
@@ -166,7 +206,9 @@ public class DashboardService {
             if (!digits.isEmpty()) {
                 int day = Integer.parseInt(digits);
                 if (day > 0 && day <= 31) {
-                    return LocalDate.of(LocalDate.now().getYear(), LocalDate.now().getMonthValue(), day);
+                    int y = (preferredYear != null) ? preferredYear : LocalDate.now().getYear();
+                    int m = (preferredMonth != null) ? preferredMonth : LocalDate.now().getMonthValue();
+                    return LocalDate.of(y, m, day);
                 }
             }
         } catch (Exception e) {

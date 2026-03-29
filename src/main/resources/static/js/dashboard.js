@@ -1,37 +1,30 @@
-document.addEventListener('DOMContentLoaded', function() {
-    initDashboard();
-});
-
-let currentYear = new Date().getFullYear();
-let currentMonth = new Date().getMonth() + 1; // 1-indexed
-
+// dashboard.js - Dynamic dates and month navigation
 let allFolders = [];
+let currentKeywords = [];
 let activeFolderId = null;
-let currentKeywords = []; // 전체 키워드 저장
-let filteredKeywords = []; // 필터링된 키워드 저장
+let expandedFolders = new Set();
+let currentYear = new Date().getFullYear();
+let currentMonth = new Date().getMonth() + 1;
 
-async function initDashboard() {
-    setupMonthSelector();
+// DOM Elements
+const dashboardTableBody = document.getElementById('dashboardTableBody');
+const tableHeaderRow = document.getElementById('tableHeaderRow');
+const tableFooterRow = document.getElementById('tableFooterRow');
+const searchInput = document.getElementById('searchInput');
+
+// Initialize
+async function init() {
     await loadFolders();
-    setupEventListeners();
+    await loadAllKeywords();
+    bindEvents();
 }
 
-function setupMonthSelector() {
-    const header = document.querySelector('.current-folder-info');
-    const monthHtml = `
-        <div class="month-selector" style="display:flex; align-items:center; gap:15px; margin-left: 20px;">
-            <button id="prevMonth" class="btn-icon"><i class="fas fa-chevron-left"></i></button>
-            <span id="currentMonthDisplay" style="font-weight:700; font-size:1.1rem;">${currentYear}년 ${currentMonth}월</span>
-            <button id="nextMonth" class="btn-icon"><i class="fas fa-chevron-right"></i></button>
-        </div>
-    `;
-    header.insertAdjacentHTML('beforeend', monthHtml);
-
-    document.getElementById('prevMonth').onclick = () => changeMonth(-1);
-    document.getElementById('nextMonth').onclick = () => changeMonth(1);
+function updateMonthDisplay() {
+    const el = document.getElementById('currentMonthDisplay');
+    if (el) el.textContent = `${currentYear}년 ${String(currentMonth).padStart(2, '0')}월`;
 }
 
-function changeMonth(delta) {
+window.changeMonth = async function(delta) {
     currentMonth += delta;
     if (currentMonth > 12) {
         currentMonth = 1;
@@ -40,16 +33,16 @@ function changeMonth(delta) {
         currentMonth = 12;
         currentYear--;
     }
-    document.getElementById('currentMonthDisplay').textContent = `${currentYear}년 ${currentMonth}월`;
-    renderTableHeaders();
-    if (activeFolderId) loadKeywords(activeFolderId);
-}
+    updateMonthDisplay();
+    renderKeywords(); // Refresh table contents for the new month
+};
 
 async function loadFolders() {
     try {
-        const response = await fetch('api/folders');
+        const response = await fetch('/api/folders');
         allFolders = await response.json();
         renderFolderList();
+        updateParentFolderSelect();
     } catch (error) {
         console.error('Error loading folders:', error);
     }
@@ -57,377 +50,365 @@ async function loadFolders() {
 
 function renderFolderList() {
     const listEl = document.getElementById('folderList');
+    if (!listEl) return;
     listEl.innerHTML = '';
     
-    // Simple flat rendering for now, or recursive for hierarchy
+    const totalLi = document.createElement('li');
+    totalLi.className = `folder-item ${activeFolderId === null ? 'active' : ''}`;
+    totalLi.innerHTML = `<i class="fas fa-th-large"></i> <span class="folder-name">전체 대시보드</span>`;
+    totalLi.onclick = () => {
+        activeFolderId = null;
+        loadAllKeywords();
+    };
+    listEl.appendChild(totalLi);
+
     const rootFolders = allFolders.filter(f => !f.parentId);
-    rootFolders.forEach(folder => {
-        renderFolderTree(folder, listEl, 0);
-    });
+    rootFolders.forEach(folder => renderFolderTree(folder, listEl, 0));
 }
 
 function renderFolderTree(folder, container, depth) {
-    const li = document.createElement('li');
-    li.className = `folder-item ${folder.id === activeFolderId ? 'active' : ''}`;
-    li.style.paddingLeft = `${depth * 20 + 16}px`;
-    li.dataset.id = folder.id;
-    
     const children = allFolders.filter(f => f.parentId === folder.id);
     const hasChildren = children.length > 0;
+    const isExpanded = expandedFolders.has(folder.id);
+    const isActive = activeFolderId === folder.id;
 
+    const li = document.createElement('li');
+    li.className = `folder-item ${isActive ? 'active' : ''}`;
+    li.style.paddingLeft = `${depth * 20 + 15}px`;
+    
     li.innerHTML = `
-        <i class="fas ${hasChildren ? 'fa-folder' : 'fa-folder-open'}"></i>
-        <span class="folder-name">${folder.name}</span>
+        <div style="display:flex; align-items:center; gap:8px; width:100%;">
+            ${hasChildren ? `<i class="fas ${isExpanded ? 'fa-chevron-down' : 'fa-chevron-right'}" style="width:12px; font-size:0.7rem;"></i>` : '<span style="width:12px;"></span>'}
+            <i class="fas ${hasChildren ? (isExpanded ? 'fa-folder-open' : 'fa-folder') : 'fa-folder'}"></i>
+            <span class="folder-name" style="flex:1;">${folder.name}</span>
+            ${folder.name !== '기본 폴더' ? `<i class="fas fa-times-circle delete-folder" onclick="event.stopPropagation(); deleteFolderMsg(${folder.id})" title="삭제"></i>` : ''}
+        </div>
     `;
 
     li.onclick = (e) => {
         e.stopPropagation();
         activeFolderId = folder.id;
-        document.querySelectorAll('.folder-item').forEach(el => el.classList.remove('active'));
-        li.classList.add('active');
-        
-        // Load keywords for this folder and all subfolders
+        if (hasChildren) {
+            if (expandedFolders.has(folder.id)) expandedFolders.delete(folder.id);
+            else expandedFolders.add(folder.id);
+        }
+        renderFolderList();
         loadKeywordsRecursive(folder.id);
     };
 
     container.appendChild(li);
-    children.forEach(child => renderFolderTree(child, container, depth + 1));
+    if (isExpanded && hasChildren) {
+        children.forEach(child => renderFolderTree(child, container, depth + 1));
+    }
 }
 
-async function loadKeywordsRecursive(parentId) {
+async function loadAllKeywords() {
     try {
-        const folderIds = getAllChildFolderIds(parentId);
-        let allKeywords = [];
-        
-        // Fetch keywords for each folder (DASHBOARD 타입만 가져오도록 API 변경)
-        for (let fid of folderIds) {
-            const response = await fetch(`api/dashboard/keywords?folderId=${fid}`);
-            if (response.ok) {
-                const keywords = await response.json();
-                allKeywords = allKeywords.concat(keywords);
-            }
-        }
-        
-        // Fetch daily data for each keyword
-        for (let k of allKeywords) {
-            const dailyRes = await fetch(`api/dashboard/data/${k.id}?year=${currentYear}&month=${currentMonth}`);
-            if (dailyRes.ok) {
-                k.dailyData = await dailyRes.json();
-            } else {
-                k.dailyData = [];
-            }
-        }
-        
-        currentKeywords = allKeywords;
-        filteredKeywords = allKeywords;
-        updateMidSelector();
-        renderKeywords(filteredKeywords);
-        document.getElementById('currentFolderName').textContent = allFolders.find(f => f.id == parentId)?.name || '기본 폴더';
+        console.log("[Dashboard] Fetching all keywords...");
+        const response = await fetch('/api/dashboard/keywords');
+        currentKeywords = await response.json();
+        console.log(`[Dashboard] Fetched ${currentKeywords.length} keywords:`, currentKeywords);
+        if (currentKeywords.length > 0) console.table(currentKeywords.slice(0, 5)); // Show first 5 in table
+
+        activeFolderId = null;
+        document.getElementById('currentFolderName').textContent = '전체 대시보드';
+        document.getElementById('itemCount').textContent = currentKeywords.length;
+        renderKeywords();
+        renderFolderList();
+        updateMonthDisplay();
     } catch (error) {
-        console.error('Error loading keywords recursively:', error);
+        console.error('Error loading all keywords:', error);
+        showToast('데이터를 불러오는 중 오류가 발생했습니다.');
     }
 }
 
-function updateMidSelector() {
-    const selector = document.getElementById('midFilterSelect');
-    if (!selector) return;
-    
-    // Get unique Product Numbers
-    const productNumbers = [...new Set(currentKeywords.map(k => k.productNumber).filter(pn => pn))].sort();
-    
-    selector.innerHTML = '<option value="">전체 상품번호</option>';
-    productNumbers.forEach(pn => {
-        const opt = document.createElement('option');
-        opt.value = pn;
-        opt.textContent = pn;
-        selector.appendChild(opt);
-    });
+async function loadKeywordsRecursive(folderId) {
+    try {
+        const response = await fetch(`/api/dashboard/keywords/recursive?folderId=${folderId}`);
+        currentKeywords = await response.json();
+        const activeFolder = allFolders.find(f => f.id === folderId);
+        document.getElementById('currentFolderName').textContent = activeFolder ? activeFolder.name : '폴더';
+        document.getElementById('itemCount').textContent = currentKeywords.length;
+        renderKeywords();
+    } catch (error) {
+        console.error('Error recursive loading:', error);
+    }
 }
 
-function filterKeywords() {
-    const filterVal = document.getElementById('midFilterSelect').value;
-    
-    if (!filterVal) {
-        filteredKeywords = currentKeywords;
+function getDaysInMonth(year, month) {
+    return new Date(year, month, 0).getDate();
+}
+
+function renderKeywords(filter = '') {
+    let list = currentKeywords;
+    if (filter) {
+        const f = filter.toLowerCase();
+        list = list.filter(k => 
+            k.keyword.toLowerCase().includes(f) || 
+            k.mid.includes(f) || 
+            (k.productName && k.productName.toLowerCase().includes(f))
+        );
+    }
+
+    const daysInMonth = getDaysInMonth(currentYear, currentMonth);
+
+    // Standard Header
+    tableHeaderRow.innerHTML = `
+        <th class="sticky-col-1" width="80">이미지</th>
+        <th class="sticky-col-2" width="280">상품 정보 (명칭/ID)</th>
+        ${Array.from({ length: daysInMonth }, (_, i) => `<th class="cell-day-header">${i + 1}일</th>`).join('')}
+    `;
+
+    dashboardTableBody.innerHTML = '';
+    const totals = Array(daysInMonth).fill(0);
+
+    if (list.length === 0) {
+        document.getElementById('emptyState').style.display = 'block';
     } else {
-        filteredKeywords = currentKeywords.filter(k => k.productNumber === filterVal);
-    }
-    renderKeywords(filteredKeywords);
-}
-
-function getAllChildFolderIds(parentId) {
-    let ids = [parentId];
-    const children = allFolders.filter(f => f.parentId == parentId);
-    children.forEach(child => {
-        ids = ids.concat(getAllChildFolderIds(child.id));
-    });
-    return ids;
-}
-
-async function loadKeywords(folderId) {
-    // Legacy support or direct load
-    await loadKeywordsRecursive(folderId);
-}
-
-function renderTableHeaders() {
-    const headerRow = document.getElementById('tableHeaderRow');
-    const filterRow = document.getElementById('tableFilterRow');
-    
-    // Clear dynamic columns
-    while (headerRow.children.length > 3) headerRow.removeChild(headerRow.lastChild);
-    while (filterRow.children.length > 3) filterRow.removeChild(filterRow.lastChild);
-    
-    const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
-    for (let i = 1; i <= daysInMonth; i++) {
-        const th = document.createElement('th');
-        th.textContent = `${i}일`;
-        th.style.minWidth = '70px';
-        headerRow.appendChild(th);
-        
-        const fth = document.createElement('th');
-        fth.style.textAlign = 'center';
-        fth.textContent = '-';
-        filterRow.appendChild(fth);
-    }
-}
-
-function renderKeywords(keywords) {
-    const tbody = document.getElementById('keywordTableBody');
-    tbody.innerHTML = '';
-    
-    const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
-    renderTableHeaders(); 
-    
-    // For totals
-    const dailyTotals = new Array(daysInMonth).fill(0);
-    
-    keywords.forEach(k => {
-        const tr = document.createElement('tr');
-        // ... 생략 (기존 렌더링 로직)
-        let html = `
-            <td style="text-align:center;"><input type="checkbox" class="row-checkbox" data-id="${k.id}"></td>
-            <td style="text-align:center;">
-                <div class="cell-image-container" onclick="triggerImageUpload(${k.id})" style="cursor:pointer;">
-                    ${k.imageUrl ? 
-                        `<img src="${k.imageUrl}" class="cell-image" onerror="this.src='https://via.placeholder.com/50';">` : 
-                        `<div class="img-placeholder"><i class="fas fa-camera"></i></div>`
-                    }
-                </div>
-            </td>
-            <td class="${k.highlight ? 'cell-highlight-yellow' : ''}" style="padding: 10px 15px;">
-                <div class="cell-product-info">
-                    <div style="display:flex; align-items:center; gap:5px;">
-                        <span class="cell-product-id editable-text" onclick="inlineEdit(this, ${k.id}, 'productNumber')">${k.productNumber || '상품번호 입력'}</span>
-                    </div>
-                    <div class="cell-product-name editable-text" onclick="inlineEdit(this, ${k.id}, 'productName')" style="margin: 4px 0;">${k.productName || '상품명 입력'}</div>
-                    <div class="cell-product-id" style="color:var(--primary); font-weight:800; cursor:pointer;" onclick="editPrice(${k.id}, ${k.price})">
-                        ${(k.price || 0).toLocaleString()}원
-                    </div>
-                </div>
-            </td>
-        `;
-        
-        for (let i = 1; i <= daysInMonth; i++) {
-            const dateStr = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
-            const dayData = k.dailyData.find(d => d.date === dateStr) || { inflowCount: 0, dailyMemo: '' };
+        document.getElementById('emptyState').style.display = 'none';
+        list.forEach(k => {
+            const tr = document.createElement('tr');
             
-            dailyTotals[i-1] += (dayData.inflowCount || 0);
+            const imgHtml = `
+                <td class="sticky-col-1 p-0">
+                    <div class="product-thumb-container">
+                        ${k.imageUrl ? `<img src="${k.imageUrl}" class="product-thumb" alt="thumb">` : 
+                        `<div class="img-placeholder" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#cbd5e0; cursor:pointer;" onclick="triggerImageUpload(${k.id})">
+                             <i class="fas fa-plus" style="font-size:1.5rem; color:#6366f1;"></i>
+                         </div>`}
+                    </div>
+                </td>
+            `;
 
-            const isHighlighted = (dayData.rank && dayData.rank <= 10); 
-            html += `
-                <td class="cell-daily ${isHighlighted ? 'cell-highlight-yellow' : ''}">
-                    <div class="cell-container">
-                        <div class="inflow-row" style="font-size:1.1rem;">${dayData.inflowCount || ''}</div>
-                        <div class="memo-row" onclick="editMemo(${k.id}, '${dateStr}', '${dayData.dailyMemo || ''}')" title="${dayData.dailyMemo || ''}">
-                            ${dayData.dailyMemo || ''}
+            const infoHtml = `
+                <td class="sticky-col-2">
+                    <div class="product-info-combined">
+                        <div class="info-top-area" title="${k.productName || k.keyword}">
+                            ${k.productName || k.keyword}
+                        </div>
+                        <div class="product-info-divider"></div>
+                        <div class="info-bottom-area">
+                            ${k.mid}
                         </div>
                     </div>
                 </td>
             `;
-        }
-        tr.innerHTML = html;
-        tbody.appendChild(tr);
-    });
 
-    renderTableFooter(dailyTotals);
-    document.getElementById('itemCount').textContent = keywords.length;
+            let daysHtml = '';
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const dayData = k.dailyData ? k.dailyData.find(d => d.date === dateStr) || {} : {};
+                totals[day-1] += (dayData.inflowCount || 0);
+                daysHtml += `
+                    <td class="cell-daily">
+                        <div class="cell-container">
+                            <div class="inflow-row">${dayData.inflowCount || ''}</div>
+                            <div class="memo-row editable-memo" onclick="inlineEditMemo(this, ${k.id}, '${dateStr}')" title="${dayData.dailyMemo || ''}">
+                                ${dayData.dailyMemo || ''}
+                            </div>
+                        </div>
+                    </td>`;
+            }
+
+            tr.innerHTML = imgHtml + infoHtml + daysHtml;
+            dashboardTableBody.appendChild(tr);
+        });
+
+        tableFooterRow.innerHTML = `
+            <tr>
+                <td colspan="2" style="text-align:right; padding-right:20px; font-weight:800; background: #f1f5f9;">일별 유입수 합계</td>
+                ${totals.map(t => `<td style="text-align:center; padding: 12px 10px; color: var(--primary); font-size:1.1rem; background: #f8fafc; border-top: 2px solid var(--border-color);">${t.toLocaleString()}</td>`).join('')}
+            </tr>
+        `;
+    }
 }
 
-function renderTableFooter(totals) {
-    const tfoot = document.getElementById('tableFooterRow');
-    let html = `
-        <tr>
-            <td colspan="3" style="text-align:right; padding-right:20px;">일별 유입수 합계</td>
-            ${totals.map(t => `<td style="text-align:center; padding: 12px 10px; color: var(--primary); font-size:1.1rem;">${t.toLocaleString()}</td>`).join('')}
-        </tr>
-    `;
-    tfoot.innerHTML = html;
-}
-
-function getParentFolderName(folderId) {
-    const folder = allFolders.find(f => f.id == folderId);
-    return folder ? folder.name : '-';
-}
-
-function renderRankChange(change) {
-    if (change > 0) return `<span class="tag-up"><i class="fas fa-caret-up"></i> ${change}</span>`;
-    if (change < 0) return `<span class="tag-down"><i class="fas fa-caret-down"></i> ${Math.abs(change)}</span>`;
-    return `<span style="color:#94a3b8">-</span>`;
-}
-
-// Interactivity
-function inlineEdit(el, id, field) {
+async function inlineEditMemo(el, id, date) {
     if (el.querySelector('input')) return;
-    
-    const originalValue = (el.textContent === '상품번호 입력' || el.textContent === '상품명 입력') ? '' : el.textContent;
-    el.innerHTML = `<input type="text" class="inline-input" value="${originalValue}" style="width:100%; padding:2px 5px; border:1px solid var(--primary); border-radius:4px;">`;
+    const originalValue = el.textContent.trim();
+    el.innerHTML = `<input type="text" class="inline-input" value="${originalValue}" style="width:100%; height:100%; border:none; background:transparent; text-align:center; font-size:0.75rem; outline:none; color:var(--text-main);">`;
     const input = el.querySelector('input');
     input.focus();
+    input.select();
     
     const save = async () => {
         const newValue = input.value.trim();
         if (newValue !== originalValue) {
-            const data = {};
-            data[field] = newValue;
-            await updateKeywordInfo(id, data);
+            const res = await fetch('/api/dashboard/memo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ keywordId: id, date: date, memo: newValue })
+            });
+            if (res.ok) {
+                el.textContent = newValue;
+                el.title = newValue;
+                const kw = currentKeywords.find(k => k.id == id);
+                if (kw && kw.dailyData) {
+                    const dd = kw.dailyData.find(d => d.date === date);
+                    if (dd) dd.dailyMemo = newValue;
+                    else kw.dailyData.push({ date: date, dailyMemo: newValue });
+                }
+                showToast('저장되었습니다.');
+            } else {
+                el.textContent = originalValue;
+                showToast('저장 실패');
+            }
         } else {
-            el.textContent = originalValue || (field === 'productNumber' ? '상품번호 입력' : (field === 'productName' ? '상품명 입력' : ''));
+            el.textContent = originalValue;
         }
     };
-    
     input.onblur = save;
     input.onkeydown = (e) => {
         if (e.key === 'Enter') save();
-        if (e.key === 'Escape') {
-            input.onblur = null;
-            el.textContent = originalValue || (field === 'productNumber' ? '상품번호 입력' : (field === 'productName' ? '상품명 입력' : ''));
+        if (e.key === 'Escape') { 
+            input.onblur = null; 
+            el.textContent = originalValue; 
         }
     };
 }
 
-async function editKeywordName(id, currentName) {
-    // Legacy support (replaced by inlineEdit)
-    const newName = prompt('상품명을 변경하시겠습니까?', currentName);
-    if (newName && newName !== currentName) {
-        await updateKeywordInfo(id, { keyword: newName });
-    }
-}
-
-async function editPrice(id, currentPrice) {
-    const newPrice = prompt('가격을 변경하시겠습니까?', currentPrice);
-    if (newPrice !== null && !isNaN(newPrice.replace(/,/g,''))) {
-        await updateKeywordInfo(id, { price: parseInt(newPrice.replace(/,/g,'')) });
-    }
-}
-
-async function editMemo(id, date, currentMemo) {
-    const newMemo = prompt(`${date} 비고란 수정:`, currentMemo);
-    if (newMemo !== null && newMemo !== currentMemo) {
-        const res = await fetch('api/dashboard/memo', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ keywordId: id, date: date, memo: newMemo })
-        });
-        if (res.ok) loadKeywords(activeFolderId);
-    }
-}
-
-async function updateKeywordInfo(id, data) {
-    try {
-        const res = await fetch('api/dashboard/update-info', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: id, ...data })
-        });
+async function deleteFolderMsg(id) {
+    if (confirm('정말 이 폴더를 삭제하시겠습니까? 관련 데이터가 모두 삭제됩니다.')) {
+        const res = await fetch(`/api/folders/${id}`, { method: 'DELETE' });
         if (res.ok) {
-            showToast('수정되었습니다.');
-            if (activeFolderId) loadKeywords(activeFolderId);
+            activeFolderId = null;
+            await loadFolders();
+            loadAllKeywords();
         }
-    } catch (err) {
-        showToast('수정 실패');
     }
 }
-function setupEventListeners() {
-    // MID Filter
-    const midFilterSelect = document.getElementById('midFilterSelect');
-    if (midFilterSelect) {
-        midFilterSelect.addEventListener('change', filterKeywords);
+
+function updateParentFolderSelect() {
+    const parentSelect = document.getElementById('parentFolderSelect');
+    if (!parentSelect) return;
+    parentSelect.innerHTML = '<option value="">없음 (최상위)</option>';
+    const rootFolders = allFolders.filter(f => !f.parentId);
+    const populate = (items, level = 0) => {
+        items.forEach(f => {
+            const opt = document.createElement('option');
+            opt.value = f.id;
+            opt.textContent = '　'.repeat(level) + (level > 0 ? '└ ' : '') + f.name;
+            parentSelect.appendChild(opt);
+            const children = allFolders.filter(child => child.parentId === f.id);
+            if (children.length > 0) populate(children, level + 1);
+        });
+    };
+    populate(rootFolders);
+}
+
+function bindEvents() {
+    if (searchInput) {
+        searchInput.oninput = (e) => renderKeywords(e.target.value);
+    }
+    
+    // Excel Modal
+    const uploadExcelBtn = document.getElementById('uploadExcelBtn');
+    const excelModal = document.getElementById('excelModal');
+    if (uploadExcelBtn && excelModal) {
+        uploadExcelBtn.onclick = () => {
+            updateExcelFolderSelect();
+            excelModal.classList.add('active');
+        };
     }
 
-    // Excel upload
-    const uploadBtn = document.getElementById('excelUploadBtn');
-    const fileInput = document.getElementById('excelFile');
-    
-    if(uploadBtn) {
-        uploadBtn.onclick = () => fileInput.click();
-        fileInput.onchange = async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
+    // Modal close buttons
+    document.querySelectorAll('.close-modal').forEach(btn => {
+        btn.onclick = () => {
+            document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
+        };
+    });
+
+    // Start Upload
+    const startUploadBtn = document.getElementById('startUploadBtn');
+    if (startUploadBtn) {
+        startUploadBtn.onclick = async () => {
+            const fileInput = document.getElementById('excelFileInput');
+            if (fileInput.files.length === 0) {
+                alert('파일을 선택해주세요.');
+                return;
+            }
             
             const formData = new FormData();
-            formData.append('file', file);
+            formData.append('file', fileInput.files[0]);
+            formData.append('folderId', document.getElementById('excelTargetFolder').value);
+            formData.append('year', document.getElementById('excelYear').value);
+            formData.append('month', document.getElementById('excelMonth').value);
             
-            showToast('엑셀 업로드 중...');
+            startUploadBtn.disabled = true;
+            startUploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 업로드 중...';
+            
             try {
-                const url = activeFolderId ? `api/dashboard/excel-upload?folderId=${activeFolderId}` : `api/dashboard/excel-upload`;
-                const res = await fetch(url, {
-                    method: 'POST',
-                    body: formData
-                });
+                const res = await fetch('/api/dashboard/excel-upload', { method: 'POST', body: formData });
                 if (res.ok) {
-                    showToast('엑셀 업로드 완료!');
-                    if (activeFolderId) {
-                        loadKeywords(activeFolderId);
-                    } else {
-                        location.reload();
-                    }
+                    showToast('성공적으로 업로드되었습니다.');
+                    excelModal.classList.remove('active');
+                    if (activeFolderId) loadKeywordsRecursive(activeFolderId);
+                    else loadAllKeywords();
                 } else {
-                    const errorMsg = await res.text();
-                    alert('업로드 실패: ' + errorMsg + '\n\n엑셀 형식을 확인해 주세요.\n(B열: 상품번호, G열: 유입수)');
+                    alert('업로드 실패: ' + await res.text());
                 }
             } catch (err) {
-                showToast('오류 발생');
+                console.error(err);
+                alert('서버 통신 오류');
+            } finally {
+                startUploadBtn.disabled = false;
+                startUploadBtn.innerHTML = '<i class="fas fa-upload"></i> 업로드 시작';
+                fileInput.value = '';
             }
         };
     }
 }
 
-function triggerImageUpload(id) {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.onchange = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('id', id);
-        
-        showToast('이미지 업로드 중...');
-        try {
-            const res = await fetch('api/dashboard/image-upload', {
-                method: 'POST',
-                body: formData
-            });
-            if (res.ok) {
-                showToast('이미지가 업데이트되었습니다.');
-                loadKeywords(activeFolderId);
-            } else {
-                showToast('실패: ' + await res.text());
-            }
-        } catch (err) {
-            showToast('오류 발생');
-        }
+function updateExcelFolderSelect() {
+    const selector = document.getElementById('excelTargetFolder');
+    if (!selector) return;
+    selector.innerHTML = '<option value="">없음 (전체 대시보드)</option>';
+    
+    const populate = (items, level = 0) => {
+        items.forEach(f => {
+            const opt = document.createElement('option');
+            opt.value = f.id;
+            opt.textContent = '　'.repeat(level) + (level > 0 ? '└ ' : '') + f.name;
+            selector.appendChild(opt);
+            const children = allFolders.filter(child => child.parentId === f.id);
+            if (children.length > 0) populate(children, level + 1);
+        });
     };
-    input.click();
+    populate(allFolders.filter(f => !f.parentId));
 }
 
 function showToast(msg) {
     const toast = document.getElementById('toast');
-    toast.textContent = msg;
-    toast.classList.add('show');
-    setTimeout(() => toast.classList.remove('show'), 3000);
+    if (toast) {
+        toast.textContent = msg;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 3000);
+    }
 }
 
-renderTableHeaders();
+// Global scope
+let targetKeywordIdForImage = null;
+window.triggerImageUpload = function(id) {
+    targetKeywordIdForImage = id;
+    document.getElementById('dashboardImageInput').click();
+};
+
+document.getElementById('dashboardImageInput').addEventListener('change', async function(e) {
+    const file = e.target.files[0];
+    if (file && targetKeywordIdForImage) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('id', targetKeywordIdForImage);
+        try {
+            const res = await fetch('/api/dashboard/image-upload', { method: 'POST', body: formData });
+            if (res.ok) {
+                showToast('이미지가 등록되었습니다.');
+                if (activeFolderId) loadKeywordsRecursive(activeFolderId);
+                else loadAllKeywords();
+            }
+        } catch (err) { console.error(err); }
+    }
+    this.value = '';
+});
+
+document.addEventListener('DOMContentLoaded', init);

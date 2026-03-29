@@ -533,10 +533,11 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--primary);
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 2px solid #e2e8f0;
   background: white;
+  font-size: 1.1rem;
 }
 
 .memo-row {
@@ -547,12 +548,20 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  background: #fdfdfd;
-  cursor: pointer;
+  background: #f8fafc;
+  cursor: text;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
 }
 
 .memo-row:hover {
-  background: #f1f5f9;
+  background: #edf2f7;
+}
+
+.editable-memo {
+  border-top: 1px solid #f1f5f9;
 }
 
 .img-thumbnail {
@@ -730,5 +739,228 @@ body {
   padding: 8px !important;
 }
 
-.path-parent { color: var(--text-muted); font-weight: 400; }
-.path-current { color: var(--text-main); font-weight: 800; border-bottom: 2px solid var(--primary); }
+/* Premium Excel Dashboard View (Based on 대시보드.jpeg) */
+.premium-excel-view {
+  border-top: 2px solid var(--border-color);
+}
+
+.premium-excel-view .data-table th {
+  background: #f1f5f9;
+  border-right: 1px solid #e2e8f0;
+  border-bottom: 2px solid #e2e8f0;
+  padding: 12px 10px;
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.premium-excel-view .data-table td {
+  padding: 0;
+  border-right: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+/* Sticky Columns */
+.sticky-col-1 {
+  position: sticky;
+  left: 0;
+  z-index: 50;
+  background: white !important;
+  box-shadow: 2px 0 5px rgba(0,0,0,0.02);
+}
+
+.sticky-col-2 {
+  position: sticky;
+  left: 80px; /* Width of col 1 */
+  z-index: 50;
+  background: white !important;
+  border-right: 2px solid #e2e8f0 !important;
+  box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+}
+
+.data-table thead th.sticky-col-1,
+.data-table thead th.sticky-col-2 {
+  z-index: 100;
+  background: #f1f5f9 !important;
+}
+
+/* Product Thumbnail Cell */
+.product-thumb-container {
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8fafc;
+  overflow: hidden;
+}
+
+.product-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.2s;
+}
+
+.product-thumb:hover {
+  transform: scale(1.1);
+}
+
+/* Combined Info Cell (Product Name + ID - Bold Separator) */
+.product-info-combined {
+  display: flex;
+  flex-direction: column;
+  height: 80px; /* Match Thumbnail Height */
+  border-left: 1px solid #e2e8f0;
+}
+
+.info-top-area {
+  flex: 1;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  font-weight: 800;
+  font-size: 0.9rem;
+  color: #1a202c;
+  line-height: 1.25;
+  background: #ffffff;
+}
+
+.product-info-divider {
+  height: 2px;
+  background: #cbd5e0; /* Bolder contrast color */
+}
+
+.info-bottom-area {
+  flex: 1;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #4a5568;
+  background: #f1f5f9; /* Darker background for clear separation */
+}
+
+/* Day Cells Optimization */
+.cell-day-header {
+  min-width: 65px;
+  text-align: center;
+}
+
+.cell-daily {
+  padding: 0 !important;
+  background: white;
+}
+
+.cell-container {
+  display: flex;
+  flex-direction: column;
+  height: 80px; /* Match Image Height */
+  min-width: 65px;
+}
+
+.inflow-row {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--primary);
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.memo-row {
+  flex: 1;
+  background: #f8fafc;
+  font-size: 0.75rem;
+  padding: 4px 6px;
+  color: #64748b;
+  line-height: 1.2;
+  overflow: hidden;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.editable-memo:hover {
+  background: #f1f5f9;
+  color: var(--primary);
+  cursor: text;
+}
+
+.p-0 { padding: 0 !important; }
+
+/* Totals Row */
+#tableFooterRow tr td {
+  border-bottom: none;
+}
+
+/* Month Selector Styling */
+.month-selector {
+  transition: all 0.2s;
+  background: #fff;
+  border: 1px solid var(--border-color);
+  padding: 5px 15px;
+  border-radius: 30px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.month-selector:hover {
+  border-color: var(--primary) !important;
+  box-shadow: var(--shadow-sm);
+}
+
+.month-selector button {
+  background: white !important;
+  color: var(--primary) !important;
+  border: 1px solid #e2e8f0 !important;
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  box-shadow: var(--shadow-sm);
+  padding: 0 !important;
+}
+
+.month-selector button:hover {
+  background: var(--primary) !important;
+  color: white !important;
+  transform: scale(1.1);
+}
+
+#currentMonthDisplay {
+  user-select: none;
+  font-family: 'JetBrains Mono', 'Pretendard', sans-serif;
+  letter-spacing: -0.5px;
+  font-weight: 700;
+  min-width: 110px;
+  text-align: center;
+}
+
+/* Premium Dashboard Info Bar */
+.current-folder-info {
+  background: white;
+  padding: 15px 25px !important;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 25px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.item-count b {
+  color: var(--primary);
+  font-size: 1.1rem;
+}

@@ -9,6 +9,7 @@ public class KeywordDailyData {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
     @ManyToOne
     @JoinColumn(name = "keyword_id")
     private KeywordRank keywordRank;

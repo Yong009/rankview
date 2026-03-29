@@ -16,6 +16,7 @@ public class FolderController {
     @GetMapping
     public List<Folder> getFolders(jakarta.servlet.http.HttpSession session) {
         String username = (String) session.getAttribute("user");
+        String role = (String) session.getAttribute("role");
         if (username == null)
             return java.util.Collections.emptyList();
 
@@ -27,6 +28,9 @@ public class FolderController {
             folderRepository.save(defaultFolder);
         }
 
+        if ("ADMIN".equals(role)) {
+            return folderRepository.findAll();
+        }
         return folderRepository.findByUsername(username);
     }
 

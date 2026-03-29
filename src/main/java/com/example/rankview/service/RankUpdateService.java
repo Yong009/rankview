@@ -31,66 +31,52 @@ public class RankUpdateService {
         int newRankValue = shoppingRankApiCaller.getRank(rank.getKeyword(), rank.getMid(),
                 rank.getCatalogMid(), rank.getStoreName());
 
-        // Determine what to use as the baseline for "Yesterday Rank"
-        // If lastUpdate was on a different day, move currentRank to yesterdayRank
-        String lastKnownRank = rank.getCurrentRank() != null ? rank.getCurrentRank() : "-";
         LocalDateTime now = LocalDateTime.now();
         
+        // 1. Determine the baseline (yesterday's rank) for today's comparison
+        // If it's a new day, we update the yesterdayRank baseline
         if (rank.getLastUpdate() == null || !rank.getLastUpdate().toLocalDate().equals(now.toLocalDate())) {
-            // It's a new day (or first time), update the baseline
+            String lastKnownRank = rank.getCurrentRank() != null ? rank.getCurrentRank() : "-";
             if (!"-".equals(lastKnownRank)) {
                 rank.setYesterdayRank(lastKnownRank);
             }
         }
         
-        // This baseline stays the same for calculations during the same day
-        String baselineRank = rank.getYesterdayRank() != null ? rank.getYesterdayRank() : "-";
-
+        String baselineStr = rank.getYesterdayRank() != null ? rank.getYesterdayRank() : "-";
+        
+        // 2. Set Current Rank display string
         if (newRankValue == -1) {
             rank.setCurrentRank("순위 밖");
-            // Calculate change against baseline
-            if (!"-".equals(baselineRank)) {
-                try {
-                    int old;
-                    if ("순위 밖".equals(baselineRank)) {
-                        old = 1001;
-                    } else {
-                        old = Integer.parseInt(baselineRank);
-                    }
-                    // Current is -1 (1001), so old - 1001
-                    rank.setRankChange(old - 1001);
-                } catch (NumberFormatException e) {
-                    rank.setRankChange(0);
-                }
-            } else {
-                rank.setRankChange(0);
-            }
         } else {
             rank.setCurrentRank(String.valueOf(newRankValue));
-
-            // Calculate rank change against baseline
-            if (!"-".equals(baselineRank)) {
-                try {
-                    int old;
-                    if ("순위 밖".equals(baselineRank)) {
-                        old = 1001;
-                    } else {
-                        old = Integer.parseInt(baselineRank);
-                    }
-                    rank.setRankChange(old - newRankValue);
-                } catch (NumberFormatException e) {
-                    rank.setRankChange(0);
-                }
-            } else {
-                rank.setRankChange(0);
-            }
         }
 
-        // Update Daily Data for History
-        updateDailyRankSnapshot(rank, now.toLocalDate(), newRankValue);
+        // 3. Calculate Rank Change against baseline
+        if (!"-".equals(baselineStr)) {
+            int oldRank = parseRankValue(baselineStr);
+            int currentVal = (newRankValue == -1) ? 1001 : newRankValue;
+            
+            // Positive change means rank improved (e.g. 10 -> 5 = +5)
+            rank.setRankChange(oldRank - currentVal);
+        } else {
+            rank.setRankChange(0);
+        }
 
-        rank.setLastUpdate(LocalDateTime.now());
+        // 4. Update Daily Data for History & Timestamp
+        updateDailyRankSnapshot(rank, now.toLocalDate(), newRankValue);
+        rank.setLastUpdate(now);
+        
         return keywordRankRepository.save(rank);
+    }
+
+    private int parseRankValue(String rankStr) {
+        if (rankStr == null || "-".equals(rankStr)) return 1001;
+        if ("순위 밖".equals(rankStr)) return 1001;
+        try {
+            return Integer.parseInt(rankStr);
+        } catch (NumberFormatException e) {
+            return 1001;
+        }
     }
 
     private void updateDailyRankSnapshot(KeywordRank keyword, LocalDate date, int rankValue) {
