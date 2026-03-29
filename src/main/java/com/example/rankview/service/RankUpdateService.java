@@ -28,8 +28,21 @@ public class RankUpdateService {
             return null;
 
         // Perform real search via Naver Shopping API
-        int newRankValue = shoppingRankApiCaller.getRank(rank.getKeyword(), rank.getMid(),
+        ShoppingRankApiCaller.RankResult result = shoppingRankApiCaller.getRank(rank.getKeyword(), rank.getMid(),
                 rank.getCatalogMid(), rank.getStoreName());
+
+        int newRankValue = result.getRank();
+        
+        // Always update from latest search result to keep info fresh
+        if (result.getLink() != null) {
+            rank.setLink(result.getLink());
+        }
+        if (result.getImage() != null) {
+            rank.setImageUrl(result.getImage());
+        }
+        if (result.getPrice() > 0) {
+            rank.setPrice(result.getPrice());
+        }
 
         LocalDateTime now = LocalDateTime.now();
 

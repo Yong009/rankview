@@ -61,7 +61,6 @@
                 <div class="action-buttons-left">
                     <button class="btn btn-primary" id="addProductBtn"><i class="fas fa-plus-circle"></i> 상품 등록</button>
                     <button class="btn btn-primary" id="refreshAllBtn"><i class="fas fa-sync-alt"></i> 순위 새로고침</button>
-                    <a href="dashboard" class="btn btn-primary" style="text-decoration:none; background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);"><i class="fas fa-chart-line"></i> 대시보드</a>
                     <a href="history" class="btn btn-primary" style="text-decoration:none; background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);"><i class="fas fa-history"></i> 순위 히스토리</a>
                     <button class="btn btn-secondary"><i class="fas fa-bullhorn"></i> 공지사항</button>
                     <div style="display:flex; flex-direction:column; align-items:center;">
@@ -102,6 +101,7 @@
                             <th>어제순위</th>
                             <th>등락</th>
                             <th>순위체크</th>
+                            <th>수정</th>
                             <th>삭제</th>
                         </tr>
                     </thead>

@@ -46,6 +46,7 @@
                 <div class="action-buttons-left">
                     <button class="btn btn-primary" onclick="loadAllKeywords()"><i class="fas fa-sync-alt"></i> 전체 데이터 새로고침</button>
                     <button class="btn btn-primary" id="uploadExcelBtn"><i class="fas fa-file-import"></i> 엑셀 업로드</button>
+                    <button class="btn btn-primary" style="background: #ef4444;" onclick="bulkUpdateSelected()"><i class="fas fa-poll"></i> 선택 항목 순위 조회</button>
                 </div>
                 
                 <div class="action-buttons-right">
@@ -53,6 +54,17 @@
                         <i class="fas fa-search"></i>
                         <input type="text" id="searchInput" placeholder="상품명, ID, 키워드 검색...">
                     </div>
+                </div>
+            </div>
+
+            <!-- Rank Progress Container -->
+            <div id="rankProgressContainer" class="progress-notice" style="display:none; margin-bottom: 20px;">
+                <div class="progress-info">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <span id="progressText">실시간 순위 조회 준비 중...</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div id="progressBar" class="progress-bar-fill"></div>
                 </div>
             </div>
 
@@ -87,8 +99,9 @@
                     <table class="data-table" id="mainTable">
                         <thead>
                             <tr id="tableHeaderRow">
-                                <th class="sticky-col-1" width="60">이미지</th>
-                                <th class="sticky-col-2" width="220">상품명 / 상품ID</th>
+                                <th class="sticky-checkbox" width="40"><input type="checkbox" id="selectAllCheck" onclick="toggleSelectAll(this.checked)"></th>
+                                <th class="sticky-col-1" width="80">이미지</th>
+                                <th class="sticky-col-2" width="320">상품명 / 상품ID</th>
                                 <!-- JS에서 1일~31일 컬럼 동적 생성 -->
                             </tr>
                         </thead>

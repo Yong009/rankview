@@ -43,9 +43,13 @@ function renderFolderList() {
     if (!listEl) return;
     listEl.innerHTML = '';
     
-    const totalLi = document.createElement('li');
-    totalLi.className = `folder-item ${activeFolderId === null ? 'active' : ''}`;
-    totalLi.innerHTML = `<i class="fas fa-th-large"></i> <span class="folder-name">전체 대시보드</span>`;
+    totalLi.innerHTML = `
+        <div style="display:flex; align-items:center; gap:8px; width:100%;">
+            <i class="fas fa-th-large"></i> 
+            <span class="folder-name" style="flex:1;">전체 대시보드</span>
+            <i class="fas fa-sync-alt update-folder-ranks" onclick="event.stopPropagation(); updateFolderRanks(null)" title="전체 순위 조회"></i>
+        </div>
+    `;
     totalLi.onclick = () => {
         activeFolderId = null;
         loadAllKeywords();
@@ -71,6 +75,7 @@ function renderFolderTree(folder, container, depth) {
             ${hasChildren ? `<i class="fas ${isExpanded ? 'fa-chevron-down' : 'fa-chevron-right'}" style="width:12px; font-size:0.7rem;"></i>` : '<span style="width:12px;"></span>'}
             <i class="fas ${hasChildren ? (isExpanded ? 'fa-folder-open' : 'fa-folder') : 'fa-folder'}"></i>
             <span class="folder-name" style="flex:1;">${folder.name}</span>
+            <i class="fas fa-sync-alt update-folder-ranks" onclick="event.stopPropagation(); updateFolderRanks(${folder.id})" title="이 폴더 순위 조회" style="font-size:0.8rem; margin-right:5px;"></i>
             ${folder.name !== '기본 폴더' ? `<i class="fas fa-times-circle delete-folder" onclick="event.stopPropagation(); deleteFolderMsg(${folder.id})" title="삭제"></i>` : ''}
         </div>
     `;
@@ -214,6 +219,120 @@ function addFilterPill(id, name, container) {
     checkedRootIds.add(id);
 }
 
+async function updateFolderRanks(folderId) {
+    if (!confirm(folderId === null ? '전체 키워드의 순위 조회를 시작하시겠습니까?' : '이 폴더의 전 키워드 순위 조회를 시작하시겠습니까?')) return;
+    
+    let targetKeywords = [];
+    if (folderId === null) {
+        targetKeywords = currentKeywords;
+    } else {
+        // Fetch recursively (or use current view if activeFolderId matches)
+        const response = await fetch(`/api/dashboard/keywords/recursive?folderId=${folderId}`);
+        targetKeywords = await response.json();
+    }
+
+    if (targetKeywords.length === 0) {
+        showToast('조회할 키워드가 없습니다.');
+        return;
+    }
+
+    const total = targetKeywords.length;
+    showProgress();
+    setProgress(0, total, `폴더 순위 조회 준비 중... (0/${total})`);
+
+    let successCount = 0;
+    for (let i = 0; i < targetKeywords.length; i++) {
+        const k = targetKeywords[i];
+        const name = k.productName || k.keyword;
+        setProgress(i, total, `[${i + 1}/${total}] '${name}' 순위 조회 중...`);
+
+        try {
+            const res = await fetch(`/api/keywords/${k.id}/update`, { method: 'POST' });
+            if (res.ok) successCount++;
+        } catch (err) { console.error(err); }
+        
+        await new Promise(r => setTimeout(r, 500));
+    }
+
+    setProgress(total, total, `폴더 조회 완료! (성공: ${successCount})`);
+    setTimeout(() => {
+        hideProgress();
+        if (activeFolderId) loadKeywordsRecursive(activeFolderId);
+        else loadAllKeywords();
+    }, 2000);
+}
+
+window.updateFolderRanks = updateFolderRanks;
+
+window.toggleSelectAll = function(checked) {
+    const cbs = document.querySelectorAll('.dashboard-row-checkbox');
+    cbs.forEach(cb => cb.checked = checked);
+};
+
+async function bulkUpdateSelected() {
+    const selectedCbs = document.querySelectorAll('.dashboard-row-checkbox:checked');
+    if (selectedCbs.length === 0) {
+        showToast('순위 조회할 항목을 선택해주세요.');
+        return;
+    }
+
+    const total = selectedCbs.length;
+    showProgress();
+    setProgress(0, total, `순위 조회 준비 중... (0/${total})`);
+
+    const ids = Array.from(selectedCbs).map(cb => cb.dataset.id);
+    let successCount = 0;
+
+    for (let i = 0; i < ids.length; i++) {
+        const id = ids[i];
+        const kw = currentKeywords.find(k => k.id == id);
+        const name = kw ? (kw.productName || kw.keyword) : id;
+
+        setProgress(i, total, `[${i + 1}/${total}] '${name}' 순위 조회 중...`);
+
+        try {
+            const res = await fetch(`/api/keywords/${id}/update`, { method: 'POST' });
+            if (res.ok) {
+                successCount++;
+            }
+        } catch (err) {
+            console.error('Update error:', err);
+        }
+        
+        // Naver API stability delay
+        await new Promise(r => setTimeout(r, 500));
+    }
+
+    setProgress(total, total, `모든 조회 완료! (성공: ${successCount})`);
+    setTimeout(() => {
+        hideProgress();
+        if (activeFolderId) loadKeywordsRecursive(activeFolderId);
+        else loadAllKeywords();
+    }, 2000);
+}
+
+function showProgress() {
+    const el = document.getElementById('rankProgressContainer');
+    if (el) el.style.display = 'block';
+}
+
+function setProgress(current, total, msg) {
+    const bar = document.getElementById('progressBar');
+    const text = document.getElementById('progressText');
+    if (bar) {
+        const percent = total > 0 ? (current / total) * 100 : 0;
+        bar.style.width = percent + '%';
+    }
+    if (text) text.textContent = msg;
+}
+
+function hideProgress() {
+    const el = document.getElementById('rankProgressContainer');
+    if (el) el.style.display = 'none';
+}
+
+window.bulkUpdateSelected = bulkUpdateSelected;
+
 window.toggleAllFilters = function(checked) {
     const cbs = document.querySelectorAll('.folder-filter-checkbox');
     cbs.forEach(cb => {
@@ -270,11 +389,14 @@ function renderKeywords(filter = '') {
     // Standard Header
     tableHeaderRow.innerHTML = `
         <th class="sticky-col-1" width="80">이미지</th>
-        <th class="sticky-col-2" width="280">상품 정보 (명칭/ID)</th>
+        <th class="sticky-col-2" width="320">상품 정보 (명칭/ID)</th>
         ${Array.from({ length: daysInMonth }, (_, i) => `<th class="cell-day-header">${i + 1}일</th>`).join('')}
     `;
 
     dashboardTableBody.innerHTML = '';
+    const selectAllCheck = document.getElementById('selectAllCheck');
+    if (selectAllCheck) selectAllCheck.checked = false;
+    
     const totals = Array(daysInMonth).fill(0);
 
     if (list.length === 0) {
@@ -284,6 +406,12 @@ function renderKeywords(filter = '') {
         list.forEach(k => {
             const tr = document.createElement('tr');
             
+            const checkboxHtml = `
+                <td class="sticky-checkbox text-center" style="padding:0">
+                    <input type="checkbox" class="dashboard-row-checkbox" data-id="${k.id}" onclick="event.stopPropagation()">
+                </td>
+            `;
+
             const imgHtml = `
                 <td class="sticky-col-1 p-0">
                     <div class="product-thumb-container">
@@ -303,7 +431,7 @@ function renderKeywords(filter = '') {
                         </div>
                         <div class="product-info-divider"></div>
                         <div class="info-bottom-area">
-                            <span style="font-size:0.7rem; color:var(--primary); font-weight:700;">[ID]</span> ${k.mid}
+                            <span style="font-size:0.7rem; color:var(--primary); font-weight:700;">[ID]</span> ${k.productNumber || k.mid || '-'}
                         </div>
                     </div>
                 </td>
@@ -325,7 +453,7 @@ function renderKeywords(filter = '') {
                     </td>`;
             }
 
-            tr.innerHTML = imgHtml + infoHtml + daysHtml;
+            tr.innerHTML = checkboxHtml + imgHtml + infoHtml + daysHtml;
             dashboardTableBody.appendChild(tr);
         });
     }

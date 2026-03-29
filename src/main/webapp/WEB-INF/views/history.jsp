@@ -105,7 +105,6 @@
                 </h1>
                 <div class="action-buttons-right">
                    <a href="/" class="btn btn-secondary" style="text-decoration:none;"><i class="fas fa-list"></i> 리스트 뷰</a>
-                   <a href="dashboard" class="btn btn-secondary" style="text-decoration:none;"><i class="fas fa-chart-line"></i> 대시보드</a>
                    <a href="/logout" class="btn btn-secondary btn-logout" style="text-decoration:none;"><i class="fas fa-sign-out-alt"></i> 로그아웃</a>
                 </div>
             </header>

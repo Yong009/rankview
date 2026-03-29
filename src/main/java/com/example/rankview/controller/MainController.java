@@ -11,11 +11,6 @@ public class MainController {
         return "index";
     }
 
-    @GetMapping("/dashboard")
-    public String dashboard() {
-        return "dashboard";
-    }
-
     @GetMapping("/history")
     public String history() {
         return "history";

@@ -45,4 +45,14 @@ public class FolderController {
     public void deleteFolder(@PathVariable Long id) {
         folderRepository.deleteById(id);
     }
+
+    @PutMapping("/{id}")
+    public Folder updateFolder(@PathVariable Long id, @RequestBody Folder folderDetails) {
+        Folder folder = folderRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Folder not found: " + id));
+        if (folderDetails.getName() != null) {
+            folder.setName(folderDetails.getName());
+        }
+        return folderRepository.save(folder);
+    }
 }

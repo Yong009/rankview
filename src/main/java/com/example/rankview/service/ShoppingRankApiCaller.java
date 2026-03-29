@@ -5,8 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -26,10 +24,13 @@ public class ShoppingRankApiCaller {
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public int getRank(String keyword, String targetMid, String targetCatalogMid, String targetStoreName) {
+    public RankResult getRank(String keyword, String targetMid, String targetCatalogMid, String targetStoreName) {
+        RankResult result = new RankResult();
+        result.setRank(-1);
+
         if (clientId == null || clientId.contains("YOUR_CLIENT_ID")) {
             System.err.println("[ShoppingRankApiCaller] Client ID가 설정되지 않았습니다.");
-            return -1;
+            return result;
         }
 
         String cleanMid = targetMid != null ? targetMid.trim() : "";
@@ -41,7 +42,6 @@ public class ShoppingRankApiCaller {
 
         int currentRank = 0;
 
-        // Naver API start + display <= 1000 (또는 1100) 규정에 맞춰 조정
         for (int start = 1; start <= 901; start += 100) {
             int retryCount = 0;
             boolean success = false;
@@ -78,62 +78,71 @@ public class ShoppingRankApiCaller {
                                 String productId = item.path("productId").asText("");
                                 String mallName = item.path("mallName").asText("").replaceAll("\\s", "").toLowerCase();
                                 String title = item.path("title").asText("").replaceAll("<[^>]*>", "");
+                                String link = item.path("link").asText("");
+                                String image = item.path("image").asText("");
+                                int lprice = item.path("lprice").asInt(0);
 
-                                // 1. MID 또는 Catalog MID 일치 확인
+                                // 일치 조건 확인
+                                boolean matchFound = false;
                                 if ((!cleanMid.isEmpty() && cleanMid.equals(productId)) ||
                                         (!cleanCatMid.isEmpty() && cleanCatMid.equals(productId))) {
-                                    System.out.println(
-                                            ">>> [발견] " + currentRank + "위: " + title + " (ID: " + productId + ")");
-                                    return currentRank;
+                                    matchFound = true;
+                                } else if (!cleanStore.isEmpty() && !mallName.isEmpty() && !"네이버".equals(mallName)) {
+                                    if (mallName.contains(cleanStore) || cleanStore.contains(mallName)) {
+                                        matchFound = true;
+                                    }
                                 }
 
-                                // 2. 스토어명 일치 확인 (네이버 가격비교 묶음 제외)
-                                if (!cleanStore.isEmpty() && !mallName.isEmpty() && !"네이버".equals(mallName)) {
-                                    if (mallName.contains(cleanStore) || cleanStore.contains(mallName)) {
-                                        System.out.println(
-                                                ">>> [발견] " + currentRank + "위: " + title + " (스토어: " + mallName + ")");
-                                        return currentRank;
-                                    }
+                                if (matchFound) {
+                                    System.out.println(">>> [발견] " + currentRank + "위: " + title);
+                                    result.setRank(currentRank);
+                                    result.setLink(link);
+                                    result.setImage(image);
+                                    result.setPrice(lprice);
+                                    result.setProductName(title);
+                                    return result;
                                 }
                             }
                         } else {
-                            // 결과가 더 이상 없으면 종료
                             System.out.println(">>> [알림] " + start + "위 이후 결과 없음. 검색 종료.");
-                            return -1;
+                            return result;
                         }
 
-                        // 전체 결과 수를 넘었으면 종료
                         int total = root.path("total").asInt(0);
                         if (currentRank >= total) {
-                            System.out.println(">>> [알림] 전체 검색 결과(" + total + ") 분석 완료. 종료.");
-                            return -1;
+                            return result;
                         }
                     } else {
-                        System.err.println("[ShoppingRankApiCaller] API 오류 응답: " + response.getStatusCode());
                         break;
                     }
-                } catch (HttpClientErrorException.TooManyRequests e) {
-                    System.err.println("[ShoppingRankApiCaller] 요청 한도 초과 (429). 1초 대기 후 재시도...");
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException ie) {
-                    }
-                    retryCount++;
                 } catch (Exception e) {
-                    System.err.println("[ShoppingRankApiCaller] 조회 중 오류: " + e.getMessage());
                     retryCount++;
-                    try {
-                        Thread.sleep(500);
-                    } catch (InterruptedException ie) {
-                    }
+                    try { Thread.sleep(500); } catch (Exception ie) {}
                 }
             }
-
-            if (!success)
-                break;
+            if (!success) break;
         }
 
         System.out.println("[ShoppingRankApiCaller] 분석 종료 >>> 1000위 내 상품 없음.");
-        return -1;
+        return result;
+    }
+
+    public static class RankResult {
+        private int rank;
+        private String link;
+        private String image;
+        private int price;
+        private String productName;
+
+        public int getRank() { return rank; }
+        public void setRank(int rank) { this.rank = rank; }
+        public String getLink() { return link; }
+        public void setLink(String link) { this.link = link; }
+        public String getImage() { return image; }
+        public void setImage(String image) { this.image = image; }
+        public int getPrice() { return price; }
+        public void setPrice(int price) { this.price = price; }
+        public String getProductName() { return productName; }
+        public void setProductName(String productName) { this.productName = productName; }
     }
 }

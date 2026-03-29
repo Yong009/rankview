@@ -110,19 +110,24 @@ body {
   font-size: 1.1rem;
 }
 
-.folder-item i.delete-folder {
+.folder-item i.delete-folder, .folder-item i.update-folder-ranks {
   font-size: 0.9rem;
   color: #a0aec0;
   opacity: 0;
-  transition: opacity 0.2s, color 0.2s;
+  transition: opacity 0.2s, color 0.2s, transform 0.3s;
 }
 
-.folder-item:hover i.delete-folder {
+.folder-item:hover i.delete-folder, .folder-item:hover i.update-folder-ranks {
   opacity: 1;
 }
 
 .folder-item i.delete-folder:hover {
   color: var(--danger);
+}
+
+.folder-item i.update-folder-ranks:hover {
+  color: var(--primary);
+  transform: rotate(180deg);
 }
 
 .folder-count {
@@ -760,9 +765,19 @@ body {
 }
 
 /* Sticky Columns */
-.sticky-col-1 {
+.sticky-checkbox {
   position: sticky;
   left: 0;
+  z-index: 50;
+  background: white !important;
+  border-right: 1px solid #e2e8f0;
+  text-align: center;
+  width: 40px;
+}
+
+.sticky-col-1 {
+  position: sticky;
+  left: 40px; /* Width of checkbox col */
   z-index: 50;
   background: white !important;
   box-shadow: 2px 0 5px rgba(0,0,0,0.02);
@@ -770,13 +785,14 @@ body {
 
 .sticky-col-2 {
   position: sticky;
-  left: 80px; /* Width of col 1 */
+  left: 120px; /* Width of checkbox(40) + col 1(80) */
   z-index: 50;
   background: white !important;
   border-right: 2px solid #e2e8f0 !important;
   box-shadow: 2px 0 5px rgba(0,0,0,0.05);
 }
 
+.data-table thead th.sticky-checkbox,
 .data-table thead th.sticky-col-1,
 .data-table thead th.sticky-col-2 {
   z-index: 100;
@@ -786,7 +802,8 @@ body {
 /* Product Thumbnail Cell */
 .product-thumb-container {
   width: 80px;
-  height: 80px;
+  height: 100%;
+  min-height: 80px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -809,20 +826,22 @@ body {
 .product-info-combined {
   display: flex;
   flex-direction: column;
-  height: 80px; /* Match Thumbnail Height */
+  min-height: 80px; /* Allow dynamic height for long names */
   border-left: 1px solid #e2e8f0;
 }
 
 .info-top-area {
   flex: 1;
-  padding: 8px 12px;
+  padding: 10px 14px;
   display: flex;
   align-items: center;
   font-weight: 800;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   color: #1a202c;
-  line-height: 1.25;
+  line-height: 1.4;
   background: #ffffff;
+  word-break: break-all;
+  overflow-wrap: break-word;
 }
 
 .product-info-divider {
@@ -855,7 +874,7 @@ body {
 .cell-container {
   display: flex;
   flex-direction: column;
-  height: 80px; /* Match Image Height */
+  min-height: 80px; /* Match Image Minimum Height */
   min-width: 65px;
 }
 
