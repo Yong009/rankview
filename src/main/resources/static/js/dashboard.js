@@ -37,16 +37,6 @@ window.changeMonth = async function(delta) {
     renderKeywords(); // Refresh table contents for the new month
 };
 
-async function loadFolders() {
-    try {
-        const response = await fetch('/api/folders');
-        allFolders = await response.json();
-        renderFolderList();
-        updateParentFolderSelect();
-    } catch (error) {
-        console.error('Error loading folders:', error);
-    }
-}
 
 function renderFolderList() {
     const listEl = document.getElementById('folderList');
@@ -102,17 +92,16 @@ function renderFolderTree(folder, container, depth) {
     }
 }
 
+// dashboard.js - Updated with Grouping & Breadcrumb
 async function loadAllKeywords() {
     try {
         console.log("[Dashboard] Fetching all keywords...");
         const response = await fetch('/api/dashboard/keywords');
         currentKeywords = await response.json();
-        console.log(`[Dashboard] Fetched ${currentKeywords.length} keywords:`, currentKeywords);
-        if (currentKeywords.length > 0) console.table(currentKeywords.slice(0, 5)); // Show first 5 in table
-
         activeFolderId = null;
         document.getElementById('currentFolderName').textContent = '전체 대시보드';
         document.getElementById('itemCount').textContent = currentKeywords.length;
+        renderBreadcrumb(null);
         renderKeywords();
         renderFolderList();
         updateMonthDisplay();
@@ -129,9 +118,28 @@ async function loadKeywordsRecursive(folderId) {
         const activeFolder = allFolders.find(f => f.id === folderId);
         document.getElementById('currentFolderName').textContent = activeFolder ? activeFolder.name : '폴더';
         document.getElementById('itemCount').textContent = currentKeywords.length;
+        renderBreadcrumb(folderId);
         renderKeywords();
     } catch (error) {
         console.error('Error recursive loading:', error);
+    }
+}
+
+function renderBreadcrumb(folderId) {
+    const breadcrumbEl = document.getElementById('dashboardBreadcrumb');
+    if (!breadcrumbEl) return;
+    breadcrumbEl.innerHTML = `<span onclick="loadAllKeywords()" style="cursor:pointer; font-weight:700; color:var(--primary);">전체</span>`;
+    
+    if (folderId) {
+        const path = [];
+        let curr = allFolders.find(f => f.id === folderId);
+        while (curr) {
+            path.unshift(curr);
+            curr = allFolders.find(f => f.id === curr.parentId);
+        }
+        path.forEach(p => {
+            breadcrumbEl.innerHTML += ` <i class="fas fa-chevron-right" style="font-size:0.6rem; opacity:0.5;"></i> <span onclick="loadKeywordsRecursive(${p.id})" style="cursor:pointer;">${p.name}</span>`;
+        });
     }
 }
 
@@ -139,8 +147,114 @@ function getDaysInMonth(year, month) {
     return new Date(year, month, 0).getDate();
 }
 
+let checkedRootIds = new Set(); // IDs of root folders to show
+
+async function loadFolders() {
+    try {
+        const response = await fetch('/api/folders');
+        allFolders = await response.json();
+        renderFolderList();
+        updateParentFolderSelect();
+        updateExcelFolderSelect();
+        initFilterBar(); // Populate the new filter bar
+    } catch (error) {
+        console.error('Error loading folders:', error);
+    }
+}
+
+function initFilterBar() {
+    const listEl = document.getElementById('filterControlList');
+    if (!listEl) return;
+    
+    // Clear list but keep 'All' checkbox
+    const allPill = document.getElementById('filterCheckAll');
+    listEl.innerHTML = '';
+    listEl.appendChild(allPill);
+
+    const rootFolders = allFolders.filter(f => !f.parentId);
+    
+    // Add 'Unclassified' (no folder) pill
+    addFilterPill(-1, '미분류', listEl);
+    
+    rootFolders.forEach(f => {
+        addFilterPill(f.id, f.name, listEl);
+    });
+
+    // Default: Check all
+    toggleAllFilters(true);
+}
+
+function addFilterPill(id, name, container) {
+    const div = document.createElement('div');
+    div.className = 'filter-pill active';
+    div.style = 'cursor:pointer; display:flex; align-items:center; gap:6px; font-size:0.85rem; font-weight:600; padding:6px 12px; background:#f8fafc; color:var(--text-main); border-radius:30px; border:1px solid var(--border-color);';
+    div.innerHTML = `<input type="checkbox" checked value="${id}" class="folder-filter-checkbox" style="width:14px; height:14px; cursor:pointer;"> ${name}`;
+    
+    const cb = div.querySelector('input');
+    cb.onchange = () => {
+        if (cb.checked) {
+            checkedRootIds.add(Number(cb.value));
+            div.style.background = 'var(--primary-light)';
+            div.style.color = 'var(--primary)';
+            div.style.borderColor = 'var(--primary)';
+        } else {
+            checkedRootIds.delete(Number(cb.value));
+            div.style.background = '#f8fafc';
+            div.style.color = 'var(--text-main)';
+            div.style.borderColor = 'var(--border-color)';
+            document.getElementById('allCheck').checked = false;
+        }
+        renderKeywords(); // Apply filter
+    };
+    
+    div.onclick = () => { cb.checked = !cb.checked; cb.onchange(); };
+    cb.onclick = (e) => e.stopPropagation();
+    
+    container.appendChild(div);
+    checkedRootIds.add(id);
+}
+
+window.toggleAllFilters = function(checked) {
+    const cbs = document.querySelectorAll('.folder-filter-checkbox');
+    cbs.forEach(cb => {
+        cb.checked = checked;
+        const div = cb.parentElement;
+        if (checked) {
+            checkedRootIds.add(Number(cb.value));
+            div.style.background = 'var(--primary-light)';
+            div.style.color = 'var(--primary)';
+            div.style.borderColor = 'var(--primary)';
+        } else {
+            checkedRootIds.delete(Number(cb.value));
+            div.style.background = '#f8fafc';
+            div.style.color = 'var(--text-main)';
+            div.style.borderColor = 'var(--border-color)';
+        }
+    });
+    renderKeywords();
+};
+
+function getRootFolder(folderId) {
+    let curr = allFolders.find(f => f.id === folderId);
+    if (!curr) return null;
+    while (curr && curr.parentId) {
+        const next = allFolders.find(f => f.id === curr.parentId);
+        if (!next) break;
+        curr = next;
+    }
+    return curr;
+}
+
 function renderKeywords(filter = '') {
     let list = currentKeywords;
+    
+    // Apply Multi-select Filter
+    list = list.filter(k => {
+        let root = k.folder ? getRootFolder(k.folder.id) : null;
+        let rootId = root ? root.id : -1;
+        return checkedRootIds.has(rootId);
+    });
+
     if (filter) {
         const f = filter.toLowerCase();
         list = list.filter(k => 
@@ -149,6 +263,7 @@ function renderKeywords(filter = '') {
             (k.productName && k.productName.toLowerCase().includes(f))
         );
     }
+    // ... rendering logic continues
 
     const daysInMonth = getDaysInMonth(currentYear, currentMonth);
 
@@ -188,7 +303,7 @@ function renderKeywords(filter = '') {
                         </div>
                         <div class="product-info-divider"></div>
                         <div class="info-bottom-area">
-                            ${k.mid}
+                            <span style="font-size:0.7rem; color:var(--primary); font-weight:700;">[ID]</span> ${k.mid}
                         </div>
                     </div>
                 </td>
@@ -213,14 +328,13 @@ function renderKeywords(filter = '') {
             tr.innerHTML = imgHtml + infoHtml + daysHtml;
             dashboardTableBody.appendChild(tr);
         });
-
-        tableFooterRow.innerHTML = `
-            <tr>
-                <td colspan="2" style="text-align:right; padding-right:20px; font-weight:800; background: #f1f5f9;">일별 유입수 합계</td>
-                ${totals.map(t => `<td style="text-align:center; padding: 12px 10px; color: var(--primary); font-size:1.1rem; background: #f8fafc; border-top: 2px solid var(--border-color);">${t.toLocaleString()}</td>`).join('')}
-            </tr>
-        `;
     }
+    tableFooterRow.innerHTML = `
+        <tr>
+            <td colspan="2" style="text-align:right; padding-right:20px; font-weight:800; background: #f1f5f9;">일별 유입수 합계</td>
+            ${totals.map(t => `<td style="text-align:center; padding: 12px 10px; color: var(--primary); font-size:1.1rem; background: #f8fafc; border-top: 2px solid var(--border-color);">${t.toLocaleString()}</td>`).join('')}
+        </tr>
+    `;
 }
 
 async function inlineEditMemo(el, id, date) {

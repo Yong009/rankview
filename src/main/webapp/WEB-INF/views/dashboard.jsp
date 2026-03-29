@@ -46,7 +46,6 @@
                 <div class="action-buttons-left">
                     <button class="btn btn-primary" onclick="loadAllKeywords()"><i class="fas fa-sync-alt"></i> 전체 데이터 새로고침</button>
                     <button class="btn btn-primary" id="uploadExcelBtn"><i class="fas fa-file-import"></i> 엑셀 업로드</button>
-                    <button class="btn btn-secondary" id="exportExcelBtn"><i class="fas fa-file-export"></i> 엑셀 내보내기</button>
                 </div>
                 
                 <div class="action-buttons-right">
@@ -57,6 +56,20 @@
                 </div>
             </div>
 
+            <div class="folder-filter-container" id="folderFilterBar" style="margin-bottom: 20px; background: #fff; padding: 15px 20px; border-radius: 12px; border: 1px solid var(--border-color); display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                <label style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
+                    <i class="fas fa-filter"></i> 필터 선택:
+                </label>
+                <div id="filterControlList" style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                    <div class="filter-pill active" id="filterCheckAll" style="cursor:pointer; display:flex; align-items:center; gap:6px; font-size:0.85rem; font-weight:600; padding:6px 12px; background:var(--primary-light); color:var(--primary); border-radius:30px; border:1px solid var(--primary);">
+                        <input type="checkbox" checked id="allCheck" style="width:14px; height:14px; cursor:pointer;" onclick="event.stopPropagation(); toggleAllFilters(this.checked)"> 전체
+                    </div>
+                    <!-- JS에서 폴더별 칩(Chip) 동적 생성 -->
+                </div>
+            </div>
+            <div class="dashboard-breadcrumb" id="dashboardBreadcrumb" style="margin-bottom: 12px; font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; gap: 8px;">
+                <!-- JS에서 브레드크럼 동적 생성 -->
+            </div>
             <div class="current-folder-info" style="margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;">
                 <div style="display: flex; align-items: center; gap: 20px;">
                     <h3 id="currentFolderName" style="margin: 0;">전체 대시보드</h3>

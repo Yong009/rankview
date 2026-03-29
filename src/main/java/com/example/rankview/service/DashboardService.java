@@ -167,18 +167,16 @@ public class DashboardService {
 
     private Optional<KeywordRank> findDashboardKeyword(String productNumber, String keywordName, String username) {
         if (productNumber != null && !productNumber.isEmpty()) {
-            // 사용자별로 같은 상품번호가 있을 수 있으므로 username 필터링 필요 (Repository에 메서드 추가 필요)
-            // 일단 기존 메서드를 사용하되, username 추가 매칭 로직으로 보완하거나 Repository를 업데이트함.
-            // 여기서는 findByProductNumberAndDataTypeAndUsername 같은 것이 필요함.
-            Optional<KeywordRank> opt = keywordRankRepository.findByProductNumberAndDataType(productNumber, "DASHBOARD");
-            if (opt.isPresent() && username.equals(opt.get().getUsername())) return opt;
+            // 사용자별로 같은 상품번호가 있을 수 있으므로 username 필터링 포함된 메서드 사용
+            Optional<KeywordRank> opt = keywordRankRepository.findByProductNumberAndDataTypeAndUsername(productNumber, "DASHBOARD", username);
+            if (opt.isPresent()) return opt;
             
-            opt = keywordRankRepository.findByMidAndDataType(productNumber, "DASHBOARD");
-            if (opt.isPresent() && username.equals(opt.get().getUsername())) return opt;
+            opt = keywordRankRepository.findByMidAndDataTypeAndUsername(productNumber, "DASHBOARD", username);
+            if (opt.isPresent()) return opt;
         }
         if (keywordName != null && !keywordName.isEmpty()) {
-            Optional<KeywordRank> opt = keywordRankRepository.findByKeywordAndDataType(keywordName, "DASHBOARD");
-            if (opt.isPresent() && username.equals(opt.get().getUsername())) return opt;
+            Optional<KeywordRank> opt = keywordRankRepository.findByKeywordAndDataTypeAndUsername(keywordName, "DASHBOARD", username);
+            if (opt.isPresent()) return opt;
         }
         return Optional.empty();
     }

@@ -22,6 +22,11 @@ public interface KeywordRankRepository extends JpaRepository<KeywordRank, Long> 
     Optional<KeywordRank> findByProductNumberAndDataType(String productNumber, String dataType);
     Optional<KeywordRank> findByMidAndDataType(String mid, String dataType);
     Optional<KeywordRank> findByKeywordAndDataType(String keyword, String dataType);
+
+    // 사용자별 검색 추가
+    Optional<KeywordRank> findByProductNumberAndDataTypeAndUsername(String productNumber, String dataType, String username);
+    Optional<KeywordRank> findByMidAndDataTypeAndUsername(String mid, String dataType, String username);
+    Optional<KeywordRank> findByKeywordAndDataTypeAndUsername(String keyword, String dataType, String username);
     
     // 이 타입에 해당하는 전체 데이터 조회
     List<KeywordRank> findByDataType(String dataType);
@@ -48,7 +53,3 @@ public interface KeywordRankRepository extends JpaRepository<KeywordRank, Long> 
     @Query("SELECT k FROM KeywordRank k LEFT JOIN k.folder f WHERE (k.username = :username OR f.username = :username)")
     List<KeywordRank> findByUsername(@Param("username") String username);
 }
-
-
-
-

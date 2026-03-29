@@ -32,7 +32,7 @@ public class RankUpdateService {
                 rank.getCatalogMid(), rank.getStoreName());
 
         LocalDateTime now = LocalDateTime.now();
-        
+
         // 1. Determine the baseline (yesterday's rank) for today's comparison
         // If it's a new day, we update the yesterdayRank baseline
         if (rank.getLastUpdate() == null || !rank.getLastUpdate().toLocalDate().equals(now.toLocalDate())) {
@@ -41,9 +41,9 @@ public class RankUpdateService {
                 rank.setYesterdayRank(lastKnownRank);
             }
         }
-        
+
         String baselineStr = rank.getYesterdayRank() != null ? rank.getYesterdayRank() : "-";
-        
+
         // 2. Set Current Rank display string
         if (newRankValue == -1) {
             rank.setCurrentRank("순위 밖");
@@ -55,7 +55,7 @@ public class RankUpdateService {
         if (!"-".equals(baselineStr)) {
             int oldRank = parseRankValue(baselineStr);
             int currentVal = (newRankValue == -1) ? 1001 : newRankValue;
-            
+
             // Positive change means rank improved (e.g. 10 -> 5 = +5)
             rank.setRankChange(oldRank - currentVal);
         } else {
@@ -65,13 +65,15 @@ public class RankUpdateService {
         // 4. Update Daily Data for History & Timestamp
         updateDailyRankSnapshot(rank, now.toLocalDate(), newRankValue);
         rank.setLastUpdate(now);
-        
+
         return keywordRankRepository.save(rank);
     }
 
     private int parseRankValue(String rankStr) {
-        if (rankStr == null || "-".equals(rankStr)) return 1001;
-        if ("순위 밖".equals(rankStr)) return 1001;
+        if (rankStr == null || "-".equals(rankStr))
+            return 1001;
+        if ("순위 밖".equals(rankStr))
+            return 1001;
         try {
             return Integer.parseInt(rankStr);
         } catch (NumberFormatException e) {
