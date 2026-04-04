@@ -16,7 +16,9 @@ public class KeywordDailyData {
 
     private LocalDate date;
     
+    @Column(name = "`rank`")
     private Integer rank = 0;
+    
     private Integer inflowCount = 0;
     
     private String dailyMemo;
